@@ -1,14 +1,12 @@
 # Data and results
-stock_backtester/data/
-stock_backtester/results/
-stock_backtester/octave/*.csv
-stock_backtester/octave/*.dat
+data/
+octave/*.csv
+octave/*.dat
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.venv/
-venv/
-ENV/
-.env
+# Julia
+.julia/
+*.jl~
+
+# OS
+.DS_Store
+Thumbs.db
