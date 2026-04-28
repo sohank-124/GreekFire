@@ -10,6 +10,7 @@ using DataFrames, Dates, Statistics
 DEBUG_MODE = false
 
 function main()
+    println("Running on $(Threads.nthreads()) threads")
     println("Starting GreekFire Walk-Forward Backtesting Engine...")
     
     # 1. Load Data
@@ -73,8 +74,7 @@ function main()
         # Calculate run number
         run_num = 1
         if isfile(log_path)
-            content = read(log_path, String)
-            run_num = count(occursin("## Run", split(content, "\n"))) + 1
+            run_num = sum(occursin("## Run", line) for line in readlines(log_path)) + 1
         end
         
         # Gather info for log
