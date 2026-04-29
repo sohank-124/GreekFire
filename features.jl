@@ -196,6 +196,22 @@ function compute_iv_rank(ivs)
     return rank
 end
 
+# NEW: Correlation feature function
+function compute_rolling_correlation(rets1, rets2; period=20)
+    n = length(rets1)
+    corr = fill(NaN, n)
+    if n < period return corr end
+    
+    for i in period:n
+        w1 = rets1[(i-period+1):i]
+        w2 = rets2[(i-period+1):i]
+        if std(w1) > 0 && std(w2) > 0
+            corr[i] = cor(w1, w2)
+        end
+    end
+    return corr
+end
+
 function calculate_features(df, spy_df)
     # Align by date to prevent index mismatch between stock and SPY
     common_dates = intersect(df.date, spy_df.date)
@@ -214,8 +230,12 @@ function calculate_features(df, spy_df)
     rsi = compute_rsi(prices)
     macd_line, signal_line, macd_hist = compute_macd(prices)
     bb_pos = compute_bollinger_pos(prices)
+    
+    # SMAs
     sma20_ratio = compute_sma_ratio(prices; period=20)
     sma50_ratio = compute_sma_ratio(prices; period=50)
+    sma200_ratio = compute_sma_ratio(prices; period=200) # ADDED
+    
     atr_norm = compute_atr_norm(highs, lows, prices)
     
     vol_avg20 = fill(NaN, n)
@@ -249,10 +269,15 @@ function calculate_features(df, spy_df)
         vegas[i] = v
     end
     
+    # NEW: Calculating returns for SPY correlation
+    stock_rets = fill(NaN, n)
+    spy_rets = fill(NaN, n)
+    stock_rets[2:end] = diff(prices) ./ prices[1:end-1]
+    spy_rets[2:end] = diff(spy_df.close) ./ spy_df.close[1:end-1]
+    
+    spy_corr = compute_rolling_correlation(stock_rets, spy_rets; period=20) # ADDED
+    
     # Target: forward 1-week excess return vs SPY
-    # target[i] uses prices[i+5] — intentionally forward looking
-    # The train slice in backtest.jl excludes the last 8 days to prevent
-    # these forward-looking targets from leaking past the cutoff date
     target = fill(NaN, n)
     spy_prices = spy_df.close
     
@@ -271,6 +296,7 @@ function calculate_features(df, spy_df)
         bb_pos = bb_pos,
         sma20_ratio = sma20_ratio,
         sma50_ratio = sma50_ratio,
+        sma200_ratio = sma200_ratio, # ADDED
         atr_norm = atr_norm,
         vol_ratio = vol_ratio,
         momentum = mom,
@@ -281,6 +307,7 @@ function calculate_features(df, spy_df)
         gamma = gammas,
         theta = thetas,
         vega = vegas,
+        spy_corr = spy_corr, # ADDED
         target = target
     )
     

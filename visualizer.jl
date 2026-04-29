@@ -24,7 +24,7 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
     mkpath("octave")
 
     alphas = [r.actual_alpha for r in valid_results]
-    tickers = [r.ticker for r in valid_results]
+    tickers = [join(r.tickers, ", ") for r in valid_results]
     preds = [r.predicted_alpha for r in valid_results]
 
     strategy_cum = cumprod(1.0 .+ alphas)

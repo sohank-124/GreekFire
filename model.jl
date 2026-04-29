@@ -1,47 +1,67 @@
 module Model
 
-using MLJ, DecisionTree, MLJDecisionTreeInterface, MLJLinearModels, DataFrames, Statistics
+using MLJ, DecisionTree, MLJDecisionTreeInterface, MLJLinearModels, XGBoost, DataFrames, Statistics
 import MLJ: predict
 
 function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols::Vector{String})
-    if isempty(feature_cols) || nrow(train_df) == 0
-        return nothing, nothing, nothing, nothing, nothing
-    end
-
     X_train = train_df[:, feature_cols]
     y_train = train_df.target
 
     X_matrix = try
         Matrix{Float64}(X_train)
     catch
-        return nothing, nothing, nothing, nothing, nothing
+        return nothing, nothing, nothing, nothing, nothing, nothing, nothing
     end
 
     valid_train_mask = .!any(isnan, X_matrix, dims=2)[:] .& .!isnan.(y_train)
     X_train_clean = X_train[valid_train_mask, :]
     y_train_clean = y_train[valid_train_mask]
 
-    if isempty(y_train_clean) || all(isnan, y_train_clean)
-        return nothing, nothing, nothing, nothing, nothing
+    if isempty(y_train_clean)
+        return nothing, nothing, nothing, nothing, nothing, nothing, nothing
     end
 
     n_subfeatures = max(3, floor(Int, sqrt(length(feature_cols))))
+    
+    # 1. Random Forest (Reduced trees and depth for speed)
     rf_model = MLJDecisionTreeInterface.RandomForestRegressor(
-        n_trees=100,
+        n_trees=50,  
         n_subfeatures=n_subfeatures,
-        max_depth=10
+        max_depth=5
     )
     mach_rf = machine(rf_model, X_train_clean, y_train_clean)
-    MLJ.fit!(mach_rf)
+    MLJ.fit!(mach_rf, verbosity=0)
 
+    # 2. Linear Regression
     lr_model = MLJLinearModels.LinearRegressor()
     mach_lr = machine(lr_model, X_train_clean, y_train_clean)
-    MLJ.fit!(mach_lr)
+    MLJ.fit!(mach_lr, verbosity=0)
+
+    # 3. XGBoost (CRITICAL FIX: nthread=1)
+    X_matrix_clean = Matrix{Float64}(X_train_clean)
+    y_vector_clean = Vector{Float64}(y_train_clean)
+    
+    dtrain = XGBoost.DMatrix(X_matrix_clean, label=y_vector_clean)
+    mach_xgb = XGBoost.xgboost(dtrain, 
+        num_round=150, 
+        nthread=1,     # <--- This stops the 8 cores from fighting each other
+        max_depth=3,
+        eta=0.01,
+        max_delta_step=1,
+        min_child_weight=3,
+        gamma=0.1,
+        reg_lambda=5,
+        subsample=0.7,
+        colsample_bytree=0.7,
+        objective="reg:squarederror",
+        silent=1
+    )
 
     pred_rf = nothing
     pred_lr = nothing
+    pred_xgb = nothing
     if nrow(test_df) > 0
-        pred_rf, pred_lr = predict_with_machines(mach_rf, mach_lr, test_df, feature_cols, X_train_clean)
+        pred_rf, pred_lr, pred_xgb = predict_with_machines(mach_rf, mach_lr, mach_xgb, test_df, feature_cols, X_train_clean)
     end
 
     raw_importances = MLJ.feature_importances(mach_rf)
@@ -50,10 +70,10 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         importance_dict[String(item[1])] = Float64(item[2])
     end
 
-    return pred_rf, pred_lr, importance_dict, mach_rf, mach_lr
+    return pred_rf, pred_lr, pred_xgb, importance_dict, mach_rf, mach_lr, mach_xgb
 end
 
-function predict_with_machines(mach_rf, mach_lr, test_df::DataFrame, feature_cols::Vector{String}, X_train_clean::DataFrame)
+function predict_with_machines(mach_rf, mach_lr, mach_xgb, test_df::DataFrame, feature_cols::Vector{String}, X_train_clean::DataFrame)
     X_test = test_df[:, feature_cols]
     X_test_filled = copy(X_test)
 
@@ -69,7 +89,12 @@ function predict_with_machines(mach_rf, mach_lr, test_df::DataFrame, feature_col
 
     pred_rf = predict(mach_rf, X_test_filled)
     pred_lr = predict(mach_lr, X_test_filled)
-    return pred_rf, pred_lr
+    
+    X_test_matrix = Matrix{Float64}(X_test_filled)
+    dtest = XGBoost.DMatrix(X_test_matrix)
+    pred_xgb = XGBoost.predict(mach_xgb, dtest)
+    
+    return pred_rf, pred_lr, pred_xgb
 end
 
 end

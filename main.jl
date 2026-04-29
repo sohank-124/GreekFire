@@ -108,9 +108,21 @@ function main()
         log_entry = "\n## Run $run_num — $(Dates.format(today(), "yyyy-mm-dd"))\n" *
                     "- Date range: $(DataLoader.START_DATE) to present\n" *
                     "- Stock universe: $num_tickers tickers\n" *
-                    "- Model: Random Forest\n" *
-                    "- n_subfeatures: $n_sub\n" *
-                    "- max_depth: 10\n" *
+                    "- Model: Ensemble (RF + XGBoost, 50/50 weighted average)\n" *
+                    "- Training Window: $(Backtest.TRAIN_WINDOW_DAYS) days rolling\n" *
+                    "- Test Step: $(Backtest.STEP_DAYS) days\n" *
+                    "- Top N Stocks: $(Backtest.TOP_N_STOCKS)\n" *
+                    "- RF n_trees: 100\n" *
+                    "- RF n_subfeatures: $n_sub\n" *
+                    "- RF max_depth: 10\n" *
+                    "- XGBoost num_round: 300\n" *
+                    "- XGBoost max_depth: 3\n" *
+                    "- XGBoost eta (learning rate): 0.03\n" *
+                    "- XGBoost min_child_weight: 3\n" *
+                    "- XGBoost gamma: 0.1\n" *
+                    "- XGBoost reg_lambda: 5\n" *
+                    "- XGBoost subsample: 0.7\n" *
+                    "- XGBoost colsample_bytree: 0.7\n" *
                     "- CAGR: $(round(perf.cagr * 100, digits=2))%\n" *
                     "- Sharpe Ratio: $(round(perf.sharpe, digits=2))\n" *
                     "- Max Drawdown: $(round(perf.max_dd * 100, digits=2))%\n" *
