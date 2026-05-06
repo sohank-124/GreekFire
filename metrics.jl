@@ -3,57 +3,41 @@ module Metrics
 using DataFrames, Statistics, Dates
 
 function compute_performance(results)
-    # results is a Vector of named tuples or nothing
-    # Filter out nothing results AND NaN values (BUG 1 fix)
     valid_results = filter(r -> r !== nothing && !ismissing(r) && !isnan(r.actual_alpha), results)
     if isempty(valid_results)
         return nothing
     end
 
-    # Convert to DataFrame for easier manipulation
     df = DataFrame([r for r in valid_results])
-    
-    # Calculate cumulative returns
-    # Actual alpha is the excess return relative to SPY
-    alphas = df.actual_alpha
-    
-    # Filter out any remaining NaN in alphas array
-    alphas = alphas[.!isnan.(alphas)]
-    
+    alphas = collect(Float64, df.actual_alpha)
+    alphas = alphas[isfinite.(alphas)]
+
     if isempty(alphas)
         return nothing
     end
-    
-    # Cumulative Strategy Return
-    # Use cumulative sum for excess returns (more stable when alphas can be negative)
-    cum_excess = cumsum(alphas)
-    
-    # Annualized Return (CAGR)
-    years = length(valid_results) / 12.0
-    
-    # Safe total return computation (handle edge cases)
-    valid_alphas = alphas[alphas .> -1.0]  # Filter out returns < -100%
-    if isempty(valid_alphas)
-        total_return = 0.0
-    else
-        # Use arithmetic sum for stability
-        total_return = sum(valid_alphas)
+
+    # FIX 4: Prepend 1.0 so equity path starts at $1
+    equity_curve = vcat([1.0], cumprod(1.0 .+ alphas))
+    # FIX 5: isfinite catches both NaN and Inf
+    equity_curve = collect(Float64, equity_curve[isfinite.(equity_curve)])
+
+    if isempty(equity_curve) || equity_curve[end] <= 0.0
+        return nothing
     end
-    
-    # Avoid negative base for CAGR
-    cagr = total_return >= -1.0 ? (1.0 + total_return)^(1.0 / years) - 1.0 : 0.0
-    
-    # Sharpe Ratio - handle edge cases
-    rf_monthly = 0.05 / 12.0
-    excess_returns = alphas .- rf_monthly
-    std_excess = std(excess_returns)
-    sharpe = std_excess > 0 ? (mean(excess_returns) / std_excess) * sqrt(12) : 0.0
-    
-    # Max Drawdown
-    equity_curve = cumprod(1.0 .+ alphas)
-    equity_curve = equity_curve[.!isnan.(equity_curve)]  # Remove NaNs
-    
-    peak = equity_curve[1]
+
+    steps_per_year = 252.0 / 5.0
+    years = length(alphas) / steps_per_year
+
+    # FIX 1: total_return from prepended-1.0 equity curve
+    total_return = equity_curve[end] - 1.0
+    cagr = (total_return >= -1.0 && years > 0) ? (1.0 + total_return)^(1.0 / years) - 1.0 : 0.0
+
+    rf_per_step = 0.05 / steps_per_year
+    excess_over_rf = alphas .- rf_per_step
+    sharpe = std(excess_over_rf) > 0 ? (mean(excess_over_rf) / std(excess_over_rf)) * sqrt(steps_per_year) : 0.0
+
+    # FIX 3: peak starts at 1.0 (the prepended starting capital)
+    peak = 1.0
     max_dd = 0.0
     for val in equity_curve
         if isfinite(val) && val > 0
@@ -66,13 +50,10 @@ function compute_performance(results)
             end
         end
     end
-    
-    # Win Rate (this is correctly comparing actual_alpha > 0, which IS the excess return)
+
     win_rate = sum(alphas .> 0) / length(alphas)
-    
-    # Avg Excess Return
     avg_excess = mean(alphas)
-    
+
     return (
         cagr = cagr,
         sharpe = sharpe,

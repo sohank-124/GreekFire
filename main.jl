@@ -48,6 +48,11 @@ function main()
     end
     
     # 3. Compute Metrics
+    valid_r = [r for r in results if r !== nothing]
+    println("Number of valid result steps: ", length(valid_r))
+    if !isempty(valid_r)
+        println("Date range: ", valid_r[1].date, " to ", valid_r[end].date)
+    end
     perf = Metrics.compute_performance(results)
     
     if perf === nothing

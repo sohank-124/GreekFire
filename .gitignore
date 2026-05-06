@@ -10,3 +10,6 @@ octave/*.dat
 # OS
 .DS_Store
 Thumbs.db
+
+# Handoff notes
+HANDOFF.md

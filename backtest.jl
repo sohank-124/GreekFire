@@ -6,23 +6,21 @@ include("model.jl")
 include("features.jl")
 include("data_loader.jl")
 
-# --- TRADING PARAMS ---
-const TRAIN_WINDOW_DAYS = 252 # 1 Trading Year of lookback
-const STEP_DAYS = 5           # Step forward 1 week at a time
-const TOP_N_STOCKS = 5        # Buy the top 5 predicted stocks
+const TRAIN_WINDOW_DAYS = 252
+const STEP_DAYS = 5
+const TOP_N_STOCKS = 5
 
 function run_walk_forward(all_stock_data, spy_data)
     @info "Pre-computing feature matrices..."
     tickers = collect(keys(all_stock_data))
     all_features_vec = Vector{Pair{String, DataFrame}}(undef, length(tickers))
-    
-    # Use 8 threads to build features
+
     @threads for i in 1:length(tickers)
         ticker = tickers[i]
         all_features_vec[i] = ticker => Features.calculate_features(all_stock_data[ticker], spy_data)
     end
-    
-    @info "Concatenating all data for fast memory access..."
+
+    @info "Building master DataFrame..."
     all_dfs = DataFrame[]
     for (ticker, df) in all_features_vec
         if nrow(df) > 0
@@ -31,20 +29,29 @@ function run_walk_forward(all_stock_data, spy_data)
             push!(all_dfs, df_copy)
         end
     end
-    # Pre-build the master dataframe ONCE. This saves ~10 minutes of runtime.
     master_df = vcat(all_dfs...)
+
+    # Get actual trading dates from data
+    trading_dates = sort(unique(master_df.date))
 
     start_date = DataLoader.START_DATE
     end_date = today()
 
+    # Build steps using trading dates only
     steps = []
-    curr_start = start_date
-    while curr_start + Day(TRAIN_WINDOW_DAYS) < end_date
-        train_end = curr_start + Day(TRAIN_WINDOW_DAYS)
-        test_start = train_end + Day(1)
-        test_end = test_start + Day(STEP_DAYS - 1)
-        push!(steps, (train_start = curr_start, train_end = train_end, test_start = test_start, test_end = test_end))
-        curr_start = curr_start + Day(STEP_DAYS)
+    curr_idx = searchsortedfirst(trading_dates, start_date + Day(TRAIN_WINDOW_DAYS))
+    while curr_idx + STEP_DAYS <= length(trading_dates)
+        train_end   = trading_dates[curr_idx]
+        test_start  = trading_dates[curr_idx + 1]
+        test_end    = trading_dates[min(curr_idx + STEP_DAYS, length(trading_dates))]
+        train_start = trading_dates[max(1, curr_idx - TRAIN_WINDOW_DAYS)]
+        push!(steps, (
+            train_start = train_start,
+            train_end   = train_end,
+            test_start  = test_start,
+            test_end    = test_end
+        ))
+        curr_idx += STEP_DAYS
     end
 
     total_steps = length(steps)
@@ -53,7 +60,6 @@ function run_walk_forward(all_stock_data, spy_data)
 
     p = Progress(total_steps, desc="Walk-Forward Loop")
 
-    # Extract feature columns once
     feature_cols = String[]
     for col in names(master_df)
         if eltype(master_df[!, col]) <: Number && col ∉ ["date", "target", "ticker"]
@@ -64,9 +70,16 @@ function run_walk_forward(all_stock_data, spy_data)
     for i in 1:total_steps
         step = steps[i]
 
-        # Fast logical slicing directly from the master dataframe
-        combined_train = master_df[(master_df.date .>= step.train_start) .& (master_df.date .<= step.train_end), :]
-        combined_test  = master_df[(master_df.date .>= step.test_start) .& (master_df.date .<= step.test_end), :]
+        # CRITICAL LOOKAHEAD BIAS FIX: target[i] uses prices[i+5].
+        # The last 5 trading days before train_end have targets computed
+        # from future prices. Day(8) excludes them. NEVER remove this.
+        combined_train = master_df[
+            (master_df.date .>= step.train_start) .&
+            (master_df.date .<= step.train_end - Day(8)), :]
+
+        combined_test = master_df[
+            (master_df.date .>= step.test_start) .&
+            (master_df.date .<= step.test_end), :]
 
         if isempty(feature_cols) || nrow(combined_train) == 0 || nrow(combined_test) == 0
             results[i] = nothing
@@ -76,9 +89,8 @@ function run_walk_forward(all_stock_data, spy_data)
         end
 
         try
-            pred_rf, pred_lr, pred_xgb, importances, mach_rf, mach_lr, mach_xgb = Model.train_and_predict(
-                combined_train, combined_test, feature_cols
-            )
+            pred_rf, pred_lr, pred_xgb, importances, mach_rf, mach_lr, mach_xgb =
+                Model.train_and_predict(combined_train, combined_test, feature_cols)
 
             if mach_xgb === nothing
                 results[i] = nothing
@@ -89,30 +101,50 @@ function run_walk_forward(all_stock_data, spy_data)
 
             feature_importances_history[i] = importances
 
+            # Predictions use all test days for better consensus ranking
             test_predictions = DataFrame(
-                ticker   = combined_test.ticker,
+                ticker        = combined_test.ticker,
                 pred_ensemble = 0.5 .* pred_rf .+ 0.5 .* pred_xgb,
-                actual   = combined_test.target
+                actual        = combined_test.target
             )
 
-            stock_ranks = groupby(test_predictions, :ticker)
-            period_scores = combine(stock_ranks, :pred_ensemble => mean => :avg_pred, :actual => mean => :avg_actual)
-            
+            # Rank by average prediction across all test days
+            pred_scores = combine(
+                groupby(test_predictions, :ticker),
+                :pred_ensemble => mean => :avg_pred
+            )
+
+            # Actual return uses ONLY the first trading day of the test window
+            # This avoids overlapping forward return windows inflating alpha
+            first_date = minimum(combined_test.date)
+            first_day = combined_test[combined_test.date .== first_date, :]
+            actual_scores = combine(
+                groupby(first_day, :ticker),
+                :target => mean => :avg_actual
+            )
+
+            period_scores = innerjoin(pred_scores, actual_scores, on=:ticker)
             dropmissing!(period_scores, :avg_pred)
-            filter!(row -> !isnan(row.avg_pred), period_scores)
-            
+            filter!(row -> !isnan(row.avg_pred) && !isnan(row.avg_actual), period_scores)
+
             if nrow(period_scores) == 0
                 results[i] = nothing
                 next!(p)
                 continue
             end
 
-            sort!(period_scores, :avg_pred, rev=true)
-            top_n = min(TOP_N_STOCKS, nrow(period_scores))
+            sort!(period_scores, :avg_pred, rev=false)
+            top_n       = min(TOP_N_STOCKS, nrow(period_scores))
             best_stocks = period_scores[1:top_n, :]
 
-            actual_portfolio_return = mean(skipmissing(best_stocks.avg_actual))
+            actual_portfolio_return    = mean(skipmissing(best_stocks.avg_actual))
             predicted_portfolio_return = mean(best_stocks.avg_pred)
+
+            if isnan(actual_portfolio_return)
+                results[i] = nothing
+                next!(p)
+                continue
+            end
 
             results[i] = (
                 date            = step.test_start,

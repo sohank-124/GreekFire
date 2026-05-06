@@ -134,3 +134,283 @@ This file tracks the results of walk-forward backtesting experiments.
 - Avg Excess Return: 0.58%
 - Top 3 features: rsi (0.0847), sma20_ratio (0.0818), spy_corr (0.0805)
 - Notes: 
+
+## Run 8 — 2026-04-29
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: XGBoost only
+- Train window: 24 months rolling
+- Test step: 3 months
+- XGBoost max_depth: 3
+- XGBoost eta: 0.01
+- XGBoost subsample: 0.6
+- XGBoost colsample_bytree: 0.6
+- Features: mom_z, vol_z, rs_z, sma200_r, vol_regime
+- CAGR: 0.34%
+- Sharpe Ratio: -2.26
+- Max Drawdown: 61.64%
+- Win Rate: 54.33%
+- Avg Excess Return: 0.05%
+- Top 3 features: N/A
+- Notes: 
+
+## Run 9 — 2026-04-29
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: 2.18%
+- Sharpe Ratio: 0.29
+- Max Drawdown: 32.14%
+- Win Rate: 60.08%
+- Avg Excess Return: 0.63%
+- Top 3 features: rsi (0.096), iv_rank (0.0849), sma50_ratio (0.0784)
+- Notes: 
+
+## Run 10 — 2026-05-04
+DOUBLE COUNTING ERROR IN CAGR AND SHARPE RATIO CALCUALTIONS
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: 35.99%
+- Sharpe Ratio: 1.72
+- Max Drawdown: 24.8%
+- Win Rate: 59.83%
+- Avg Excess Return: 0.65%
+- Top 3 features: iv_rank (0.116), vol_ratio (0.0891), macd_hist (0.0741)
+- Notes: 
+
+## Run 11 — 2026-05-04
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: 34.18%
+- Sharpe Ratio: 1.44
+- Max Drawdown: 24.83%
+- Win Rate: 60.59%
+- Avg Excess Return: 0.62%
+- Top 3 features: iv_rank (0.1001), atr_norm (0.0885), sma20_ratio (0.0703)
+- Notes: 
+
+## Run 12 — 2026-05-04
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: 45.59%
+- Sharpe Ratio: 1.61
+- Max Drawdown: 27.53%
+- Win Rate: 60.17%
+- Avg Excess Return: 0.79%
+- Top 3 features: iv_rank (0.0834), rsi (0.0797), sma20_ratio (0.0761)
+- Notes: 
+
+## Run 13 — 2026-05-04
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: 49.29%
+- Sharpe Ratio: 1.75
+- Max Drawdown: 31.91%
+- Win Rate: 60.34%
+- Avg Excess Return: 0.84%
+- Top 3 features: iv_rank (0.1129), bb_pos (0.0856), delta (0.0767)
+- Notes: 
+
+## Run 14 — 2026-05-05
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: -9.32%
+- Sharpe Ratio: -0.62
+- Max Drawdown: 79.99%
+- Win Rate: 49.27%
+- Avg Excess Return: -0.15%
+- Top 3 features: sma50_ratio (0.0864), atr_norm (0.0744), delta (0.07)
+- Notes: 
+
+## Run 15 — 2026-05-05
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: -12.08%
+- Sharpe Ratio: -0.78
+- Max Drawdown: 88.46%
+- Win Rate: 46.58%
+- Avg Excess Return: -0.21%
+- Top 3 features: sma50_ratio (0.1013), atr_norm (0.0862), rsi (0.0724)
+- Notes: 
+
+## Run 16 — 2026-05-05
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: -10.24%
+- Sharpe Ratio: -0.68
+- Max Drawdown: 85.83%
+- Win Rate: 47.92%
+- Avg Excess Return: -0.17%
+- Top 3 features: atr_norm (0.1072), iv_rank (0.0826), sma50_ratio (0.0822)
+- Notes: 
+
+## Run 17 — 2026-05-05
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: -8.71%
+- Sharpe Ratio: -0.59
+- Max Drawdown: 79.48%
+- Win Rate: 47.92%
+- Avg Excess Return: -0.14%
+- Top 3 features: sma50_ratio (0.0857), iv_rank (0.0851), atr_norm (0.0734)
+- Notes: 
+
+## Run 18 — 2026-05-05
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- CAGR: 30.6%
+- Sharpe Ratio: 1.29
+- Max Drawdown: 61.62%
+- Win Rate: 60.39%
+- Avg Excess Return: 0.56%
+- Top 3 features: iv_rank (0.0901), sma50_ratio (0.0762), macd_hist (0.0715)
+- Notes: 

@@ -1,4 +1,5 @@
 clear; clc; close all;
+cd(fileparts(mfilename('fullpath')));
 
 % Load numeric CSVs
 equity = csvread('equity_curve.csv', 1, 0);
@@ -10,11 +11,18 @@ importance = csvread('feature_importance.csv', 1, 0);
 fid = fopen('monthly_alpha.csv');
 fgetl(fid);
 alpha_col = [];
+alpha_step = [];
+step_idx = 0;
 line = fgetl(fid);
 while ischar(line)
-    parts = strsplit(line, ',');
-    alpha_col(end+1) = str2double(parts{4});
-    line = fgetl(fid);
+step_idx = step_idx + 1;
+parts = strsplit(line, ',');
+val = str2double(parts{end});
+if ~isnan(val)
+alpha_col(end+1) = val;
+alpha_step(end+1) = step_idx;
+end
+line = fgetl(fid);
 end
 fclose(fid);
 
@@ -57,8 +65,8 @@ figure('Name', 'GreekFire Performance Analysis', 'Position', [100, 100, 1400, 90
 
 % 1. Equity Curve
 subplot(3, 2, 1);
-plot(equity(:,1), equity(:,2), 'b', 'LineWidth', 2); hold on;
-plot(equity(:,1), equity(:,3), 'r', 'LineWidth', 2);
+semilogy(equity(:,1), equity(:,2), 'b', 'LineWidth', 2); hold on;
+semilogy(equity(:,1), equity(:,3), 'r', 'LineWidth', 2);
 title('Cumulative Returns');
 xlabel('Step'); ylabel('Multiple');
 legend('Strategy', 'SPY Benchmark');
@@ -66,8 +74,8 @@ grid on;
 
 % 2. Monthly Alpha
 subplot(3, 2, 2);
-bar(alpha_col);
-title('Actual Monthly Excess Return');
+bar(alpha_step, alpha_col);
+title('Actual 5-Day Excess Return (Alpha)');
 xlabel('Step'); ylabel('Alpha');
 grid on;
 
