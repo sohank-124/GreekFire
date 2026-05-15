@@ -176,7 +176,7 @@ function main()
                     "- Regime detector: Manual 2-state Gaussian HMM on SPY regime index\n" *
                     "- HMM training window: $(Regime.TRAIN_WINDOW) steps (rolling, no peeking)\n" *
                     "- Bear market hedge: Protective put (cost: $(Regime.BORROW_COST * 100)%, ATM strike)\n" *
-                    "- Max positions bear: $(Regime.MAX_POSITIONS_BEAR)\n" *
+                    "- Max positions bear: $(Backtest.BOTTOM_N_STOCKS)\n" *
                     "- CAGR: $(round(perf.cagr * 100, digits=2))%\n" *
                     "- Sharpe Ratio: $(round(perf.sharpe, digits=2))\n" *
                     "- Max Drawdown: $(round(perf.max_dd * 100, digits=2))%\n" *
