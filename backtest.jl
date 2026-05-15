@@ -9,6 +9,8 @@ include("data_loader.jl")
 const TRAIN_WINDOW_DAYS = 252
 const STEP_DAYS = 5
 const TOP_N_STOCKS = 5
+const BOTTOM_N_STOCKS = 5      # Number of stocks to short
+const STOP_LOSS_THRESHOLD = 0.07 # 7% stop loss on individual short positions
 
 function run_walk_forward(all_stock_data, spy_data)
     @info "Pre-computing feature matrices..."
@@ -31,13 +33,11 @@ function run_walk_forward(all_stock_data, spy_data)
     end
     master_df = vcat(all_dfs...)
 
-    # Get actual trading dates from data
     trading_dates = sort(unique(master_df.date))
 
     start_date = DataLoader.START_DATE
     end_date = today()
 
-    # Build steps using trading dates only
     steps = []
     curr_idx = searchsortedfirst(trading_dates, start_date + Day(TRAIN_WINDOW_DAYS))
     while curr_idx + STEP_DAYS <= length(trading_dates)
@@ -67,12 +67,52 @@ function run_walk_forward(all_stock_data, spy_data)
         end
     end
 
+    # Load raw price data for sector and stop loss calculations
+    # Build a ticker -> sector map (GICS sectors hardcoded for our universe)
+    sector_map = Dict(
+        "AAPL" => "Tech", "MSFT" => "Tech", "GOOGL" => "Tech",
+        "AMZN" => "Tech", "NVDA" => "Tech", "META" => "Tech",
+        "AMD"  => "Tech", "INTC" => "Tech", "ADBE" => "Tech",
+        "CSCO" => "Tech", "TXN" => "Tech", "QCOM" => "Tech",
+        "AVGO" => "Tech", "ACN" => "Tech", "IBM" => "Tech",
+        "JPM"  => "Finance", "BAC" => "Finance", "GS" => "Finance",
+        "AXP"  => "Finance", "BLK" => "Finance", "SCHW" => "Finance",
+        "CME"  => "Finance", "ICE" => "Finance", "USB" => "Finance",
+        "PNC"  => "Finance", "TFC" => "Finance", "COF" => "Finance",
+        "MET"  => "Finance", "AIG" => "Finance", "TRV" => "Finance",
+        "PGR"  => "Finance",
+        "XOM"  => "Energy", "CVX" => "Energy", "COP" => "Energy",
+        "EOG"  => "Energy", "SLB" => "Energy",
+        "JNJ"  => "Health", "PFE" => "Health", "ABBV" => "Health",
+        "MRK"  => "Health", "LLY" => "Health", "UNH" => "Health",
+        "AMGN" => "Health", "GILD" => "Health", "ISRG" => "Health",
+        "REGN" => "Health", "VRTX" => "Health", "CVS" => "Health",
+        "TSLA" => "Auto",
+        "DIS"  => "Media", "NFLX" => "Media",
+        "KO"   => "Consumer", "WMT" => "Consumer", "PG" => "Consumer",
+        "PEP"  => "Consumer", "COST" => "Consumer", "MCD" => "Consumer",
+        "SBUX" => "Consumer", "NKE" => "Consumer", "TGT" => "Consumer",
+        "LOW"  => "Consumer", "ROST" => "Consumer", "TJX" => "Consumer",
+        "EL"   => "Consumer", "CL" => "Consumer", "KMB" => "Consumer",
+        "GIS"  => "Consumer", "MDLZ" => "Consumer",
+        "HD"   => "Industrial", "CAT" => "Industrial", "GE" => "Industrial",
+        "BA"   => "Industrial", "MMM" => "Industrial", "HON" => "Industrial",
+        "RTX"  => "Industrial", "EMR" => "Industrial", "ETN" => "Industrial",
+        "ITW"  => "Industrial", "PH" => "Industrial", "ROK" => "Industrial",
+        "UPS"  => "Industrial", "FDX" => "Industrial", "CSX" => "Industrial",
+        "NSC"  => "Industrial", "DE" => "Industrial",
+        "NEE"  => "Utilities",
+        "SPG"  => "RealEstate", "PLD" => "RealEstate", "AMT" => "RealEstate",
+        "CCI"  => "RealEstate", "EQIX" => "RealEstate", "DLR" => "RealEstate",
+        "TMO"  => "Science", "DHR" => "Science",
+        "BRK-B" => "Finance",
+        "V"    => "Finance", "MA" => "Finance",
+        "T"    => "Telecom", "VZ" => "Telecom"
+    )
+
     for i in 1:total_steps
         step = steps[i]
 
-        # CRITICAL LOOKAHEAD BIAS FIX: target[i] uses prices[i+5].
-        # The last 5 trading days before train_end have targets computed
-        # from future prices. Day(8) excludes them. NEVER remove this.
         combined_train = master_df[
             (master_df.date .>= step.train_start) .&
             (master_df.date .<= step.train_end - Day(8)), :]
@@ -101,21 +141,17 @@ function run_walk_forward(all_stock_data, spy_data)
 
             feature_importances_history[i] = importances
 
-            # Predictions use all test days for better consensus ranking
             test_predictions = DataFrame(
                 ticker        = combined_test.ticker,
                 pred_ensemble = 0.5 .* pred_rf .+ 0.5 .* pred_xgb,
                 actual        = combined_test.target
             )
 
-            # Rank by average prediction across all test days
             pred_scores = combine(
                 groupby(test_predictions, :ticker),
                 :pred_ensemble => mean => :avg_pred
             )
 
-            # Actual return uses ONLY the first trading day of the test window
-            # This avoids overlapping forward return windows inflating alpha
             first_date = minimum(combined_test.date)
             first_day = combined_test[combined_test.date .== first_date, :]
             actual_scores = combine(
@@ -133,24 +169,78 @@ function run_walk_forward(all_stock_data, spy_data)
                 continue
             end
 
+            # --- LONG candidates (rev=false, our working signal) ---
             sort!(period_scores, :avg_pred, rev=false)
-            top_n       = min(TOP_N_STOCKS, nrow(period_scores))
-            best_stocks = period_scores[1:top_n, :]
+            top_n_false       = min(TOP_N_STOCKS, nrow(period_scores))
+            best_stocks_false = period_scores[1:top_n_false, :]
+            actual_false      = mean(skipmissing(best_stocks_false.avg_actual))
+            predicted_false   = mean(best_stocks_false.avg_pred)
 
-            actual_portfolio_return    = mean(skipmissing(best_stocks.avg_actual))
-            predicted_portfolio_return = mean(best_stocks.avg_pred)
+            # --- SHORT candidates (rev=true, highest predicted = worst actual) ---
+            # Pick bottom N stocks by our signal for shorting
+            # Apply sector concentration filter: max 2 stocks per sector
+            sort!(period_scores, :avg_pred, rev=true)
+            short_candidates = DataFrame()
+            sector_counts = Dict{String, Int}()
+            for row in eachrow(period_scores)
+                if nrow(short_candidates) >= BOTTOM_N_STOCKS
+                    break
+                end
+                ticker = row.ticker
+                sector = get(sector_map, ticker, "Unknown")
+                count = get(sector_counts, sector, 0)
+                if count < 2  # Max 2 per sector
+                    push!(short_candidates, row)
+                    sector_counts[sector] = count + 1
+                end
+            end
 
-            if isnan(actual_portfolio_return)
+            # Compute short portfolio return
+            # Short return = -actual_return - borrow_cost
+            # Stop loss: if stock went up more than STOP_LOSS_THRESHOLD,
+            # cap the loss at STOP_LOSS_THRESHOLD
+            short_returns = Float64[]
+            short_tickers = String[]
+            for row in eachrow(short_candidates)
+                if isnan(row.avg_actual)
+                    continue
+                end
+                # Raw short return: negative of stock return minus borrow cost
+                raw_short_ret = -row.avg_actual - 0.001
+                # Apply stop loss: cap loss at STOP_LOSS_THRESHOLD
+                # If stock went up (our short went wrong), loss is -avg_actual
+                # Stop loss kicks in when -avg_actual < -STOP_LOSS_THRESHOLD
+                short_ret_with_stop = max(raw_short_ret, -STOP_LOSS_THRESHOLD)
+                push!(short_returns, short_ret_with_stop)
+                push!(short_tickers, row.ticker)
+            end
+
+            actual_short = isempty(short_returns) ? 0.0 : mean(short_returns)
+
+            # rev=true for compatibility with regime switcher
+            sort!(period_scores, :avg_pred, rev=true)
+            top_n_true       = min(TOP_N_STOCKS, nrow(period_scores))
+            best_stocks_true = period_scores[1:top_n_true, :]
+            actual_true      = mean(skipmissing(best_stocks_true.avg_actual))
+            predicted_true   = mean(best_stocks_true.avg_pred)
+
+            if isnan(actual_false) && isnan(actual_true)
                 results[i] = nothing
                 next!(p)
                 continue
             end
 
             results[i] = (
-                date            = step.test_start,
-                tickers         = best_stocks.ticker,
-                predicted_alpha = predicted_portfolio_return,
-                actual_alpha    = actual_portfolio_return
+                date               = step.test_start,
+                tickers_false      = best_stocks_false.ticker,
+                tickers_true       = best_stocks_true.ticker,
+                tickers_short      = short_tickers,
+                predicted_alpha    = predicted_false,
+                actual_alpha_false = actual_false,
+                actual_alpha_true  = actual_true,
+                actual_alpha_short = actual_short,
+                chosen_alpha       = isnan(actual_false) ? 0.0 : actual_false,
+                regime_signal      = :base
             )
 
         catch e

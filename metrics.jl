@@ -2,23 +2,37 @@ module Metrics
 
 using DataFrames, Statistics, Dates
 
-function compute_performance(results)
-    valid_results = filter(r -> r !== nothing && !ismissing(r) && !isnan(r.actual_alpha), results)
+function compute_performance(results; signal::Symbol = :chosen)
+    alpha_field = if signal == :base
+        :actual_alpha_false
+    elseif signal == :fallback
+        :actual_alpha_true
+    else
+        :chosen_alpha
+    end
+
+    valid_results = filter(r -> r !== nothing && !ismissing(r), results)
     if isempty(valid_results)
         return nothing
     end
 
-    df = DataFrame([r for r in valid_results])
-    alphas = collect(Float64, df.actual_alpha)
-    alphas = alphas[isfinite.(alphas)]
+    alphas = Float64[]
+    for r in valid_results
+        if hasproperty(r, alpha_field)
+            a = getproperty(r, alpha_field)
+            if isfinite(a)
+                push!(alphas, a)
+            else
+                push!(alphas, 0.0)
+            end
+        end
+    end
 
     if isempty(alphas)
         return nothing
     end
 
-    # FIX 4: Prepend 1.0 so equity path starts at $1
     equity_curve = vcat([1.0], cumprod(1.0 .+ alphas))
-    # FIX 5: isfinite catches both NaN and Inf
     equity_curve = collect(Float64, equity_curve[isfinite.(equity_curve)])
 
     if isempty(equity_curve) || equity_curve[end] <= 0.0
@@ -28,7 +42,6 @@ function compute_performance(results)
     steps_per_year = 252.0 / 5.0
     years = length(alphas) / steps_per_year
 
-    # FIX 1: total_return from prepended-1.0 equity curve
     total_return = equity_curve[end] - 1.0
     cagr = (total_return >= -1.0 && years > 0) ? (1.0 + total_return)^(1.0 / years) - 1.0 : 0.0
 
@@ -36,7 +49,6 @@ function compute_performance(results)
     excess_over_rf = alphas .- rf_per_step
     sharpe = std(excess_over_rf) > 0 ? (mean(excess_over_rf) / std(excess_over_rf)) * sqrt(steps_per_year) : 0.0
 
-    # FIX 3: peak starts at 1.0 (the prepended starting capital)
     peak = 1.0
     max_dd = 0.0
     for val in equity_curve
@@ -62,6 +74,14 @@ function compute_performance(results)
         avg_excess = avg_excess,
         equity_curve = equity_curve
     )
+end
+
+function compute_all_signals(results)
+    signals = Dict{Symbol, Any}()
+    for sig in (:base, :fallback, :chosen)
+        signals[sig] = compute_performance(results; signal=sig)
+    end
+    return signals
 end
 
 end
