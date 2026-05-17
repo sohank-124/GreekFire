@@ -71,12 +71,9 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
     ))
 
     # --- Regime signal over time ---
-    regime_map = Dict("base" => 0, "fallback" => 1, "cash" => 2, "none" => 3)
-    regime_nums = [get(regime_map, r, 3) for r in regimes]
     CSV.write(joinpath("octave", "regime_signal.csv"), DataFrame(
-        step_index = 1:length(regimes),
-        regime = regimes,
-        regime_num = regime_nums
+        step_index = 1:length(valid_results),
+        regime = [string(hasproperty(r, :regime_signal) ? r.regime_signal : "bull") for r in valid_results]
     ))
 
     # --- Monthly / rolling alpha ---
