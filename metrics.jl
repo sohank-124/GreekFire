@@ -7,6 +7,8 @@ function compute_performance(results; signal::Symbol = :chosen)
         :actual_alpha_false
     elseif signal == :fallback
         :actual_alpha_true
+    elseif signal == :short
+        :actual_alpha_short
     else
         :chosen_alpha
     end
@@ -78,7 +80,7 @@ end
 
 function compute_all_signals(results)
     signals = Dict{Symbol, Any}()
-    for sig in (:base, :fallback, :chosen)
+    for sig in (:base, :fallback, :short, :chosen)
         signals[sig] = compute_performance(results; signal=sig)
     end
     return signals
