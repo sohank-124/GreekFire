@@ -55,19 +55,30 @@ function train_hmm(data::Vector{Float64}; n_states::Int=2, max_iter::Int=100,
 
     mid_idx = T ÷ 2
     sorted_data = sort(data)
-    low_half = sorted_data[1:mid_idx]
+    low_half  = sorted_data[1:mid_idx]
     high_half = sorted_data[(mid_idx+1):end]
 
     means = [mean(low_half), mean(high_half)]
-    stds = [std(low_half) + 1e-6, std(high_half) + 1e-6]
+    stds  = [max(std(low_half), 1e-6), max(std(high_half), 1e-6)]
 
-    A = [0.9 0.1; 0.1 0.9]
+    # Guard against NaN means or stds from uniform data
+    if any(isnan, means) || any(isnan, stds) || any(x -> x <= 0, stds)
+        return Dict(
+            "A"              => [0.9 0.1; 0.1 0.9],
+            "pi"             => [0.5, 0.5],
+            "means"          => [mean(data), mean(data) + 1e-4],
+            "stds"           => [1e-4, 1e-4],
+            "log_likelihood" => -Inf
+        )
+    end
+
+    A  = [0.9 0.1; 0.1 0.9]
     pi = [0.5, 0.5]
 
     prev_log_likelihood = -Inf
 
     for iter in 1:max_iter
-        log_A = log.(A)
+        log_A  = log.(A)
         log_pi = log.(pi)
 
         alpha, log_likelihood = forward_algorithm(data, log_A, log_pi, means, stds)
@@ -87,19 +98,27 @@ function train_hmm(data::Vector{Float64}; n_states::Int=2, max_iter::Int=100,
         end
 
         for k in 1:K
-            means[k] = sum(gamma[:, k] .* data) / sum(gamma[:, k])
-            variance = sum(gamma[:, k] .* (data .- means[k]).^2) / sum(gamma[:, k])
-            stds[k] = sqrt(max(variance, 1e-8))
+            gamma_sum = sum(gamma[:, k])
+            means[k] = sum(gamma[:, k] .* data) / max(gamma_sum, 1e-10)
+            variance  = sum(gamma[:, k] .* (data .- means[k]).^2) / max(gamma_sum, 1e-10)
+            stds[k]   = sqrt(max(variance, 1e-8))
+            # Guard against NaN after M-step
+            if isnan(stds[k]) || stds[k] <= 0
+                stds[k] = 1e-6
+            end
+            if isnan(means[k])
+                means[k] = mean(data)
+            end
         end
 
         for j in 1:K
             for k in 1:K
-                numerator = 0.0
+                numerator   = 0.0
                 denominator = 0.0
                 for t in 2:T
-                    numerator += exp(alpha[t-1, j] + log_A[j, k] +
-                                     logpdf(Normal(means[k], stds[k]), data[t]) +
-                                     beta[t, k] - log_likelihood)
+                    numerator   += exp(alpha[t-1, j] + log_A[j, k] +
+                                       logpdf(Normal(means[k], stds[k]), data[t]) +
+                                       beta[t, k] - log_likelihood)
                     denominator += exp(alpha[t-1, j] + beta[t-1, j] - log_likelihood)
                 end
                 A[j, k] = numerator / max(denominator, 1e-10)
@@ -116,29 +135,26 @@ function train_hmm(data::Vector{Float64}; n_states::Int=2, max_iter::Int=100,
     end
 
     return Dict(
-        "A" => A,
-        "pi" => pi,
-        "means" => means,
-        "stds" => stds,
+        "A"              => A,
+        "pi"             => pi,
+        "means"          => means,
+        "stds"           => stds,
         "log_likelihood" => prev_log_likelihood
     )
 end
 
 function predict_state(model::Dict, obs::Vector{Float64})
-    means = model["means"]
-    stds = model["stds"]
-    pi = model["pi"]
+    means  = model["means"]
+    stds   = model["stds"]
+    pi     = model["pi"]
     log_pi = log.(pi)
 
-    T = length(obs)
+    T      = length(obs)
     states = Vector{Int}(undef, T)
 
     for t in 1:T
-        # For each observation, pick the state with highest posterior probability
-        # This is correct for single observations and avoids Viterbi backtracking
-        # which would require future observations to be meaningful
-        log_probs = [log_pi[k] + logpdf(Normal(means[k], stds[k]), obs[t]) for k in 1:2]
-        states[t] = argmax(log_probs)
+        log_probs  = [log_pi[k] + logpdf(Normal(means[k], stds[k]), obs[t]) for k in 1:2]
+        states[t]  = argmax(log_probs)
     end
 
     return states

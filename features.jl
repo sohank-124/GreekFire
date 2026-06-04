@@ -220,10 +220,34 @@ function calculate_features(df, spy_df)
     sort!(df, :date)
     sort!(spy_df, :date)
     
-    prices = df.close
-    highs = df.high
-    lows = df.low
-    volumes = df.volume
+    # Drop rows with missing price data (delisted tickers, weekends, etc.)
+    valid_rows = .!ismissing.(df.close) .& .!isnothing.(df.close) .&
+                 .!ismissing.(df.high) .& .!isnothing.(df.high) .&
+                 .!ismissing.(df.low) .& .!isnothing.(df.low) .&
+                 .!ismissing.(df.volume) .& .!isnothing.(df.volume)
+    df = df[valid_rows, :]
+    
+    # Also drop any missing SPY data just in case
+    spy_valid = .!ismissing.(spy_df.close) .& .!isnothing.(spy_df.close)
+    spy_df = spy_df[spy_valid, :]
+    
+    # Re-align after independent filtering — dates may diverge
+    common_dates = intersect(df.date, spy_df.date)
+    df = df[in.(df.date, Ref(common_dates)), :]
+    spy_df = spy_df[in.(spy_df.date, Ref(common_dates)), :]
+    sort!(df, :date)
+    sort!(spy_df, :date)
+    
+    # If too few rows remain, return empty DataFrame to avoid downstream errors
+    if nrow(df) < 50 || nrow(spy_df) < 50
+        return DataFrame()
+    end
+    
+    # Force Float64 conversion to prevent Union type leakage
+    prices  = Float64.(coalesce.(df.close, NaN))
+    highs   = Float64.(coalesce.(df.high, NaN))
+    lows    = Float64.(coalesce.(df.low, NaN))
+    volumes = Float64.(coalesce.(df.volume, NaN))
     
     n = length(prices)
     

@@ -14,22 +14,22 @@ function main()
     println("Running on $(Threads.nthreads()) threads")
     println("Starting GreekFire Walk-Forward Backtesting Engine with Regime Switching...")
 
-    # 1. Load Data
     all_stock_data = DataLoader.load_all_data()
-    spy_data = all_stock_data["SPY"]
+    # SPY benchmark is not in S&P 500 membership csv, fetch it separately
+    spy_data = DataLoader.load_ticker_data("SPY")
+    if spy_data === nothing
+        error("Failed to load SPY benchmark data. Cannot proceed with backtest.")
+    end
 
     if DEBUG_MODE
-        println("=== DEBUG MODE: Running first 5 steps sequentially ===")
+        println("=== DEBUG MODE ===")
         results, importances = Backtest.run_walk_forward_debug(all_stock_data, spy_data)
     else
-        # 2. Run Backtest
         results, importances = Backtest.run_walk_forward(all_stock_data, spy_data)
 
-        # 3. Apply HMM regime switching with protective puts
-        println("Applying HMM regime detector...")
-        results = Regime.apply_regime_switching(results, spy_data)
+        # Regime is now embedded in backtest: either short portfolio (when possible) or hold SPY
+        # HMM regime switching removed per user request
 
-        # Print top 3 feature importances
         valid_imps = []
         for i in 1:length(importances)
             try
@@ -52,21 +52,18 @@ function main()
         end
     end
 
-    # 4. Compute Metrics
     valid_r = [r for r in results if r !== nothing]
     println("Number of valid result steps: ", length(valid_r))
     if !isempty(valid_r)
         println("Date range: ", valid_r[1].date, " to ", valid_r[end].date)
     end
 
-    # Compute and compare all three signals
     all_perf = Metrics.compute_all_signals(results)
 
-    println("\n--- Regime-Switching Performance ---")
-    for s in (:base, :fallback, :chosen)
+    println("\n--- Strategy Performance ---")
+    for s in (:short, :chosen)
         p = all_perf[s]
-        label = s == :base ? "rev=false (base) only" :
-                s == :fallback ? "rev=true (fallback) only" : "regime-switched"
+        label = s == :short ? "shorting only (always short)" : "chosen (short or hold SPY)"
         if p !== nothing
             println("$(label):")
             println("  CAGR: $(round(p.cagr * 100, digits=2))%")
@@ -80,7 +77,6 @@ function main()
     end
     println("-------------------------------------\n")
 
-    # Legacy single-metric for compatibility
     perf = Metrics.compute_performance(results; signal=:chosen)
 
     if perf === nothing
@@ -96,7 +92,6 @@ function main()
     println("Avg Excess Return: ", round(perf.avg_excess * 100, digits=2), "%")
     println("--------------------------\n")
 
-    # 5. Export Regime Breakdown
     try
         regime_counts = Dict()
         for r in results
@@ -114,22 +109,18 @@ function main()
         @warn "Failed to print regime breakdown: $e"
     end
 
-    # 6. Export Visualizations
     Visualizer.export_results(results, importances, perf)
     println("Results exported to /octave directory.")
 
-    # 7. Update Experiment Log
     try
         log_path = joinpath(pwd(), "EXPERIMENT_LOG.md")
-
         run_num = 1
         if isfile(log_path)
             run_num = sum(occursin("## Run", line) for line in readlines(log_path)) + 1
         end
 
-        num_tickers = length(DataLoader.TICKERS)
+        num_tickers = length(DataLoader.get_all_sp500_tickers())
 
-        top_features_str = "N/A"
         valid_imps = []
         for i in 1:length(importances)
             try
@@ -139,6 +130,8 @@ function main()
                 continue
             end
         end
+
+        top_features_str = "N/A"
         if !isempty(valid_imps)
             first_imp = valid_imps[1]
             sorted = sort(collect(first_imp), by=x->x[2], rev=true)
@@ -156,27 +149,14 @@ function main()
 
         log_entry = "\n## Run $run_num — $(Dates.format(today(), "yyyy-mm-dd"))\n" *
                     "- Date range: $(DataLoader.START_DATE) to present\n" *
-                    "- Stock universe: $num_tickers tickers\n" *
+                    "- Stock universe: $num_tickers tickers (point-in-time S&P 500)\n" *
                     "- Model: Ensemble (RF + XGBoost, 50/50 weighted average)\n" *
                     "- Training Window: $(Backtest.TRAIN_WINDOW_DAYS) days rolling\n" *
                     "- Test Step: $(Backtest.STEP_DAYS) days\n" *
                     "- Top N Stocks: $(Backtest.TOP_N_STOCKS)\n" *
-                    "- RF n_trees: 100\n" *
+                    "- Short N Stocks: $(Backtest.BOTTOM_N_STOCKS)\n" *
+                    "- Stop Loss: $(Backtest.STOP_LOSS_THRESHOLD * 100)%\n" *
                     "- RF n_subfeatures: $n_sub\n" *
-                    "- RF max_depth: 10\n" *
-                    "- XGBoost num_round: 300\n" *
-                    "- XGBoost max_depth: 3\n" *
-                    "- XGBoost eta (learning rate): 0.03\n" *
-                    "- XGBoost min_child_weight: 3\n" *
-                    "- XGBoost gamma: 0.1\n" *
-                    "- XGBoost reg_lambda: 5\n" *
-                    "- XGBoost subsample: 0.7\n" *
-                    "- XGBoost colsample_bytree: 0.7\n" *
-                    "- **HMM REGIME-SWITCHING SETUP**\n" *
-                    "- Regime detector: Manual 2-state Gaussian HMM on SPY regime index\n" *
-                    "- HMM training window: $(Regime.TRAIN_WINDOW) steps (rolling, no peeking)\n" *
-                    "- Bear market hedge: Protective put (cost: $(Regime.BORROW_COST * 100)%, ATM strike)\n" *
-                    "- Max positions bear: $(Backtest.BOTTOM_N_STOCKS)\n" *
                     "- CAGR: $(round(perf.cagr * 100, digits=2))%\n" *
                     "- Sharpe Ratio: $(round(perf.sharpe, digits=2))\n" *
                     "- Max Drawdown: $(round(perf.max_dd * 100, digits=2))%\n" *
@@ -194,6 +174,6 @@ function main()
     end
 end
 
-if @isdefined(ARGS) && isempty(ARGS)
+if isempty(ARGS)
     main()
 end

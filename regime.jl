@@ -8,10 +8,8 @@ using .HMM
 const TRAIN_WINDOW = 252
 const MIN_STEPS_FOR_HMM = 20
 const BORROW_COST = 0.001
-# Long/short allocation in bear regime
-# 1.5 = 150% long + 150% short (aggressive, net neutral) changed to .8 less aggressive
 const BEAR_LONG_WEIGHT = 0.5
-const BEAR_SHORT_WEIGHT = .8
+const BEAR_SHORT_WEIGHT = 0.8
 
 function train_hmm_on_history(alphas::Vector{Float64}, current_idx::Int)
     start_idx = max(1, current_idx - TRAIN_WINDOW)
@@ -36,7 +34,7 @@ end
 
 function predict_current_regime(model, alphas::Vector{Float64}, current_idx::Int)
     if model === nothing
-        return :bull
+        return :bull  # Default to bull if HMM not ready
     end
 
     if current_idx <= 1
@@ -114,14 +112,10 @@ function apply_regime_switching(results::Vector{Any}, spy_data::DataFrame)
         chosen_alpha = 0.0
 
         if regime == :bull
-            # Bull: full long position using base strategy
             chosen_alpha = isfinite(base_alpha) ? base_alpha : 0.0
 
         elseif regime == :bear
-            # Bear: aggressive long-short
-            # BEAR_LONG_WEIGHT of base strategy (reduced long)
-            # BEAR_SHORT_WEIGHT of short portfolio (aggressive short)
-            long_component  = isfinite(base_alpha) ? BEAR_LONG_WEIGHT * base_alpha : 0.0
+            long_component  = isfinite(base_alpha)  ? BEAR_LONG_WEIGHT * base_alpha  : 0.0
             short_component = isfinite(short_alpha) ? BEAR_SHORT_WEIGHT * short_alpha : 0.0
             chosen_alpha = long_component + short_component
         end
@@ -133,8 +127,8 @@ function apply_regime_switching(results::Vector{Any}, spy_data::DataFrame)
         new_r = merge(
             r,
             (
-                chosen_alpha  = chosen_alpha,
-                regime_signal = regime,
+                chosen_alpha   = chosen_alpha,
+                regime_signal  = regime,
             )
         )
 

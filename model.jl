@@ -54,7 +54,6 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         subsample=0.7,
         colsample_bytree=0.7,
         objective="reg:squarederror",
-        silent=1
     )
 
     pred_rf = nothing

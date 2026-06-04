@@ -747,3 +747,481 @@ DOUBLE COUNTING ERROR IN CAGR AND SHARPE RATIO CALCUALTIONS
 - Avg Excess Return: 1.28%
 - Top 3 features: iv_rank (0.1044), sma50_ratio (0.0791), atr_norm (0.0782)
 - Notes: 
+
+## Run 30 — 2026-05-16
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- **HMM REGIME-SWITCHING SETUP**
+- Regime detector: Manual 2-state Gaussian HMM on SPY regime index
+- HMM training window: 252 steps (rolling, no peeking)
+- Bear market hedge: Protective put (cost: 0.1%, ATM strike)
+- Max positions bear: 5
+- CAGR: 35.67%
+- Sharpe Ratio: 1.5
+- Max Drawdown: 55.28%
+- Win Rate: 60.15%
+- Avg Excess Return: 0.64%
+- Top 3 features: atr_norm (0.082), iv_rank (0.0783), sma50_ratio (0.073)
+- Notes: 
+
+## Run 31 — 2026-05-16
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- **HMM REGIME-SWITCHING SETUP**
+- Regime detector: Manual 2-state Gaussian HMM on SPY regime index
+- HMM training window: 252 steps (rolling, no peeking)
+- Bear market hedge: Protective put (cost: 0.1%, ATM strike)
+- Max positions bear: 5
+- CAGR: 28.85%
+- Sharpe Ratio: 1.48
+- Max Drawdown: 43.63%
+- Win Rate: 55.99%
+- Avg Excess Return: 0.52%
+- Top 3 features: sma50_ratio (0.0853), rsi (0.0819), iv_rank (0.0799)
+- Notes: 
+
+## Run 32 — 2026-05-16
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- **HMM REGIME-SWITCHING SETUP**
+- Regime detector: Manual 2-state Gaussian HMM on SPY regime index
+- HMM training window: 252 steps (rolling, no peeking)
+- Bear market hedge: Protective put (cost: 0.1%, ATM strike)
+- Max positions bear: 5
+- CAGR: 23.84%
+- Sharpe Ratio: 1.14
+- Max Drawdown: 57.06%
+- Win Rate: 55.75%
+- Avg Excess Return: 0.45%
+- Top 3 features: macd_line (0.087), iv_rank (0.0853), atr_norm (0.0848)
+- Notes: 
+
+## Run 33 — 2026-05-16
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- **HMM REGIME-SWITCHING SETUP**
+- Regime detector: Manual 2-state Gaussian HMM on SPY regime index
+- HMM training window: 252 steps (rolling, no peeking)
+- Bear market hedge: Protective put (cost: 0.1%, ATM strike)
+- Max positions bear: 5
+- CAGR: 24.65%
+- Sharpe Ratio: 1.32
+- Max Drawdown: 39.45%
+- Win Rate: 55.62%
+- Avg Excess Return: 0.46%
+- Top 3 features: sma50_ratio (0.1109), atr_norm (0.1052), iv_rank (0.0795)
+- Notes: 
+
+## Run 34 — 2026-05-16
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- **HMM REGIME-SWITCHING SETUP**
+- Regime detector: Manual 2-state Gaussian HMM on SPY regime index
+- HMM training window: 252 steps (rolling, no peeking)
+- Bear market hedge: Protective put (cost: 0.1%, ATM strike)
+- Max positions bear: 5
+- CAGR: 19.57%
+- Sharpe Ratio: 1.04
+- Max Drawdown: 40.31%
+- Win Rate: 55.26%
+- Avg Excess Return: 0.37%
+- Top 3 features: iv_rank (0.1097), sma50_ratio (0.087), atr_norm (0.0749)
+- Notes: 
+
+## Run 35 — 2026-05-16
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- **HMM REGIME-SWITCHING SETUP**
+- Regime detector: Manual 2-state Gaussian HMM on SPY regime index
+- HMM training window: 252 steps (rolling, no peeking)
+- Bear market hedge: Protective put (cost: 0.1%, ATM strike)
+- Max positions bear: 5
+- CAGR: 26.82%
+- Sharpe Ratio: 1.36
+- Max Drawdown: 44.6%
+- Win Rate: 55.99%
+- Avg Excess Return: 0.49%
+- Top 3 features: iv_rank (0.1065), sma50_ratio (0.0969), delta (0.0752)
+- Notes: 
+
+## Run 36 — 2026-05-16
+- Date range: 2009-01-01 to present
+- Stock universe: 101 tickers
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- RF n_trees: 100
+- RF n_subfeatures: 4
+- RF max_depth: 10
+- XGBoost num_round: 300
+- XGBoost max_depth: 3
+- XGBoost eta (learning rate): 0.03
+- XGBoost min_child_weight: 3
+- XGBoost gamma: 0.1
+- XGBoost reg_lambda: 5
+- XGBoost subsample: 0.7
+- XGBoost colsample_bytree: 0.7
+- **HMM REGIME-SWITCHING SETUP**
+- Regime detector: Manual 2-state Gaussian HMM on SPY regime index
+- HMM training window: 252 steps (rolling, no peeking)
+- Bear market hedge: Protective put (cost: 0.1%, ATM strike)
+- Max positions bear: 5
+- CAGR: 40.16%
+- Sharpe Ratio: 1.62
+- Max Drawdown: 48.14%
+- Win Rate: 60.39%
+- Avg Excess Return: 0.71%
+- Top 3 features: rsi (0.0948), iv_rank (0.0923), sma50_ratio (0.0874)
+- Notes: 
+
+## Run 37 — 2026-05-22
+- Date range: 2009-01-01 to present
+- Stock universe: 848 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- HMM training window: 252 steps
+- Bear long weight: 0.5
+- Bear short weight: 0.8
+- CAGR: 159.36%
+- Sharpe Ratio: 0.26
+- Max Drawdown: 50.1%
+- Win Rate: 62.1%
+- Avg Excess Return: 43.2%
+- Top 3 features: atr_norm (0.1349), pos52 (0.115), iv_rank (0.0982)
+- Notes: 
+
+## Run 38 — 2026-05-22
+- Date range: 2009-01-01 to present
+- Stock universe: 848 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- HMM training window: 252 steps
+- Bear long weight: 0.5
+- Bear short weight: 0.8
+- CAGR: 112.03%
+- Sharpe Ratio: 2.67
+- Max Drawdown: 18.63%
+- Win Rate: 61.49%
+- Avg Excess Return: 1.58%
+- Top 3 features: atr_norm (0.1513), sma200_ratio (0.1155), pos52 (0.1006)
+- Notes: 
+
+## Run 39 — 2026-05-22
+- Date range: 2009-01-01 to present
+- Stock universe: 848 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- HMM training window: 252 steps
+- Bear long weight: 0.5
+- Bear short weight: 0.8
+- CAGR: 104.06%
+- Sharpe Ratio: 2.59
+- Max Drawdown: 26.66%
+- Win Rate: 64.79%
+- Avg Excess Return: 1.49%
+- Top 3 features: atr_norm (0.1869), pos52 (0.1244), iv (0.107)
+- Notes: 
+
+## Run 40 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 848 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 103.54%
+- Sharpe Ratio: 2.54
+- Max Drawdown: 26.66%
+- Win Rate: 64.67%
+- Avg Excess Return: 1.49%
+- Top 3 features: atr_norm (0.1817), sma200_ratio (0.1099), iv_rank (0.1083)
+- Notes: 
+
+## Run 41 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 82.87%
+- Sharpe Ratio: 2.5
+- Max Drawdown: 16.03%
+- Win Rate: 61.86%
+- Avg Excess Return: 1.26%
+- Top 3 features: sma200_ratio (0.1367), pos52 (0.1207), vol_ratio (0.1036)
+- Notes: 
+
+## Run 42 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 89.97%
+- Sharpe Ratio: 2.62
+- Max Drawdown: 14.93%
+- Win Rate: 63.08%
+- Avg Excess Return: 1.34%
+- Top 3 features: pos52 (0.132), sma200_ratio (0.1236), atr_norm (0.1118)
+- Notes: 
+
+## Run 43 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 80.96%
+- Sharpe Ratio: 2.52
+- Max Drawdown: 9.3%
+- Win Rate: 64.43%
+- Avg Excess Return: 1.23%
+- Top 3 features: sma200_ratio (0.161), pos52 (0.1241), atr_norm (0.1164)
+- Notes: 
+
+## Run 44 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 80.15%
+- Sharpe Ratio: 2.48
+- Max Drawdown: 12.9%
+- Win Rate: 63.81%
+- Avg Excess Return: 1.22%
+- Top 3 features: sma200_ratio (0.1471), pos52 (0.14), vol_ratio (0.0913)
+- Notes: 
+
+## Run 45 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 83.64%
+- Sharpe Ratio: 2.54
+- Max Drawdown: 12.09%
+- Win Rate: 63.45%
+- Avg Excess Return: 1.26%
+- Top 3 features: sma200_ratio (0.1691), pos52 (0.1198), atr_norm (0.0976)
+- Notes: 
+
+## Run 46 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 90.11%
+- Sharpe Ratio: 2.71
+- Max Drawdown: 10.8%
+- Win Rate: 64.55%
+- Avg Excess Return: 1.33%
+- Top 3 features: sma200_ratio (0.1404), pos52 (0.138), atr_norm (0.1339)
+- Notes: 
+
+## Run 47 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 78.1%
+- Sharpe Ratio: 2.37
+- Max Drawdown: 10.38%
+- Win Rate: 62.84%
+- Avg Excess Return: 1.2%
+- Top 3 features: sma200_ratio (0.1359), atr_norm (0.1275), pos52 (0.1241)
+- Notes: 
+
+## Run 48 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 85.03%
+- Sharpe Ratio: 2.53
+- Max Drawdown: 11.81%
+- Win Rate: 63.57%
+- Avg Excess Return: 1.28%
+- Top 3 features: sma200_ratio (0.1374), pos52 (0.1121), atr_norm (0.1071)
+- Notes: 
+
+## Run 49 — 2026-05-23
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 87.19%
+- Sharpe Ratio: 2.66
+- Max Drawdown: 14.6%
+- Win Rate: 64.43%
+- Avg Excess Return: 1.3%
+- Top 3 features: vol_ratio (0.1311), sma200_ratio (0.1272), atr_norm (0.1067)
+- Notes: 
+
+## Run 50 — 2026-05-24
+- Date range: 2009-01-01 to present
+- Stock universe: 810 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 5
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- RF n_subfeatures: 4
+- CAGR: 20.14%
+- Sharpe Ratio: 0.8
+- Max Drawdown: 26.7%
+- Win Rate: 54.16%
+- Avg Excess Return: 0.4%
+- Top 3 features: pos52 (0.1361), sma200_ratio (0.1272), atr_norm (0.112)
+- Notes: 
