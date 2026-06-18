@@ -1,6 +1,7 @@
 module Visualizer
 
 using DataFrames, CSV, Statistics
+using ..Backtest
 
 export export_results
 
@@ -18,10 +19,9 @@ function extract_alphas(results)
     end
 
     if isempty(valid_results)
-        return nothing, nothing, nothing, nothing, nothing
+        return nothing, nothing, nothing, nothing, nothing, nothing
     end
 
-    # Extract all alpha series
     dates = [r.date for r in valid_results]
     alphas_false = Float64[]
     alphas_true = Float64[]
@@ -30,8 +30,8 @@ function extract_alphas(results)
     regimes = String[]
 
     for r in valid_results
-        a_false = hasproperty(r, :actual_alpha_false) ? getproperty(r, :actual_alpha_false) : NaN
-        a_true = hasproperty(r, :actual_alpha_true) ? getproperty(r, :actual_alpha_true) : NaN
+        a_false = hasproperty(r, :actual_alpha_long) ? getproperty(r, :actual_alpha_long) : NaN
+        a_true = hasproperty(r, :actual_alpha_high_pred) ? getproperty(r, :actual_alpha_high_pred) : NaN
         a_short = hasproperty(r, :actual_alpha_short) ? getproperty(r, :actual_alpha_short) : NaN
         a_chosen = hasproperty(r, :chosen_alpha) ? getproperty(r, :chosen_alpha) : NaN
         regime = hasproperty(r, :regime_signal) ? string(getproperty(r, :regime_signal)) : "none"
@@ -56,15 +56,14 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
 
     dates, alphas_false, alphas_true, alphas_short, alphas_chosen, regimes = alphas_data
 
-    mkpath("octave")
+    output_dir = joinpath(pwd(), "octave")
+    mkpath(output_dir)
 
-    # --- Equity curves ---
-    # Benchmark OEF (S&P 100) 10yr CAGR ≈ 9%; convert to per-step rate
     oef_step_rate = (1.09)^(5.0 / 252.0) - 1.0
-    ec_false = vcat([1.0], cumprod(1.0 .+ alphas_false))
-    ec_true  = vcat([1.0], cumprod(1.0 .+ alphas_true))
-    ec_chosen = vcat([1.0], cumprod(1.0 .+ alphas_chosen))
-    oef_cum  = vcat([1.0], cumprod(fill(1.0 + oef_step_rate, length(alphas_false))))
+    ec_false = vcat(1.0, cumprod(1.0 .+ alphas_false))
+    ec_true  = vcat(1.0, cumprod(1.0 .+ alphas_true))
+    ec_chosen = vcat(1.0, cumprod(1.0 .+ alphas_chosen))
+    oef_cum  = vcat(1.0, cumprod(fill(1.0 + oef_step_rate, length(alphas_false))))
 
     n = length(ec_false)
 
@@ -74,16 +73,11 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
         oef_benchmark = oef_cum
     ))
 
-    # --- Regime signal over time ---
-    # Export regime strings per step for Octave coloring (equity curve segments)
-    # alphas_data already filters out nothing results, so regimes has one
-    # entry per valid step — exactly matches the number of equity-curve segments.
     CSV.write(joinpath("octave", "regime_signal.csv"), DataFrame(
         step = 1:length(regimes),
         regime = regimes
     ))
 
-    # --- Monthly / rolling alpha ---
     CSV.write(joinpath("octave", "monthly_alpha.csv"), DataFrame(
         month_index = 1:length(alphas_false),
         alpha_false = alphas_false,
@@ -92,7 +86,6 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
         alpha_chosen = alphas_chosen
     ))
 
-    # --- Drawdowns ---
     function calc_drawdown(ec)
         peak = 1.0
         dd = Float64[]
@@ -116,7 +109,6 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
         dd_chosen = dd_chosen
     ))
 
-    # --- Rolling win rate ---
     function rolling_winrate(alphas, window=50)
         wins = [a > 0 ? 1.0 : 0.0 for a in alphas]
         rates = Float64[]
@@ -138,7 +130,6 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
         winrate_chosen = wr_chosen
     ))
 
-    # --- Feature importances ---
     valid_importances = []
     for i in 1:length(feature_importances)
         try
@@ -163,6 +154,77 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
         end
         CSV.write(joinpath("octave", "feature_importance.csv"), DataFrame(rows))
     end
+
+    # Observability: filter valid results once for the per-step exports below.
+    valid_results = [r for r in results if r !== nothing && !ismissing(r)]
+
+    # Export holdings per rebalance (drawdown investigation).
+    holdings_rows = []
+    for (i, r) in enumerate(valid_results)
+        if r === nothing
+            continue
+        end
+        # Long holdings
+        for (rank, idx) in enumerate(r.long_indices_copy)
+            row = r.period_scores_copy[idx, :]
+            sector = get(Backtest.SECTOR_MAP, row.ticker, "Unknown")
+            weight = 1.0 / length(r.long_indices_copy)
+            contribution = weight * row.avg_actual
+            push!(holdings_rows, (
+                step_index = i - 1,
+                date = r.date,
+                ticker = row.ticker,
+                rank = rank,
+                predicted_score = row.avg_pred,
+                sector = sector,
+                weight = weight,
+                side = "long",
+                actual_return = row.avg_actual,
+                contribution = contribution
+            ))
+        end
+        # Short holdings
+        for (rank, idx) in enumerate(r.short_indices_copy)
+            row = r.period_scores_copy[idx, :]
+            sector = get(Backtest.SECTOR_MAP, row.ticker, "Unknown")
+            weight = -1.0 / length(r.short_indices_copy)
+            contribution = weight * row.avg_actual
+            push!(holdings_rows, (
+                step_index = i - 1,
+                date = r.date,
+                ticker = row.ticker,
+                rank = rank,
+                predicted_score = row.avg_pred,
+                sector = sector,
+                weight = weight,
+                side = "short",
+                actual_return = row.avg_actual,
+                contribution = contribution
+            ))
+        end
+    end
+    holdings_df = DataFrame(holdings_rows)
+    CSV.write(joinpath(output_dir, "holdings.csv"), holdings_df)
+
+    # Export model health metrics per step (drawdown investigation).
+    health_rows = []
+    for (i, r) in enumerate(valid_results)
+        if r === nothing
+            continue
+        end
+        push!(health_rows, (
+            step_index = i - 1,
+            date = r.date,
+            ic = r.ic,
+            rank_ic = r.rank_ic,
+            portfolio_return = r.actual_alpha_long,
+            spy_return = r.spy_ret,
+            pred_spread = maximum(r.period_scores_copy.avg_pred) - minimum(r.period_scores_copy.avg_pred),
+            decile_spread = r.decile_spread
+        ))
+    end
+    health_df = DataFrame(health_rows)
+    CSV.write(joinpath(output_dir, "model_health.csv"), health_df)
 
 end
 

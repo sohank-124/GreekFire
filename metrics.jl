@@ -4,11 +4,13 @@ using DataFrames, Statistics, Dates
 
 function compute_performance(results; signal::Symbol = :chosen)
     alpha_field = if signal == :base
-        :actual_alpha_false
+        :actual_alpha_long
     elseif signal == :fallback
-        :actual_alpha_true
+        :actual_alpha_high_pred
     elseif signal == :short
         :actual_alpha_short
+    elseif signal == :linear
+        :actual_equal_weight_long
     else
         :chosen_alpha
     end
@@ -34,8 +36,8 @@ function compute_performance(results; signal::Symbol = :chosen)
         return nothing
     end
 
-    equity_curve = vcat([1.0], cumprod(1.0 .+ alphas))
-    equity_curve = collect(Float64, equity_curve[isfinite.(equity_curve)])
+    equity_curve = vcat(1.0, cumprod(1.0 .+ alphas))
+    equity_curve = collect(filter(isfinite, Float64.(equity_curve)))
 
     if isempty(equity_curve) || equity_curve[end] <= 0.0
         return nothing
@@ -80,7 +82,7 @@ end
 
 function compute_all_signals(results)
     signals = Dict{Symbol, Any}()
-    for sig in (:base, :fallback, :short, :chosen)
+    for sig in (:base, :fallback, :short, :linear, :chosen)
         signals[sig] = compute_performance(results; signal=sig)
     end
     return signals

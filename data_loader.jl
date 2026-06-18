@@ -1,188 +1,253 @@
 module DataLoader
 
-using MarketData, DataFrames, CSV, Dates, JSON3, HTTP, TimeSeries
+using CSV, DataFrames, Dates, Statistics
 
-const TICKERS = [
-    "XOM",  "MSFT", "WMT",  "PG",   "JNJ",  "AAPL", "GE",   "GOOGL", "BRK-B", "PFE",
-    "T",    "JPM",  "KO",   "BAC",  "CVX",  "IBM",  "VZ",   "WFC",  "MRK",   "CSCO",
-    "PEP",  "INTC", "MCD",  "HD",   "BA",   "MMM",  "AXP",  "C",    "DIS",   "TGT",
-    "NKE",  "CMCSA","HON",  "EMR",  "LMT",  "GD",   "NOC",  "GS",   "MS",    "USB",
-    "PNC",  "COF",  "BK",   "STT",  "MET",  "AIG",  "TRV",  "PGR",  "UNH",   "CI",
-    "HUM",  "AFL",  "CINF", "L",    "PRU",  "ALL",  "SCHW", "BLK",  "BEN",   "TROW",
-    "IVZ",  "NTRS", "DFS",  "SYF",  "COP",  "EOG",  "SLB",  "HAL",  "NOV",   "OXY",
-    "MRO",  "DVN",  "CHK",  "RRC",  "SWN",  "EQT",  "AR",   "PXD",  "HPQ",   "ORCL",
-    "ACN",  "TMO",  "DHR",  "NEE",  "TXN",  "QCOM", "AMGN", "BMY",  "ABT",   "MDT",
-    "F",    "CMI",  "DE",   "CAT",  "UPS",  "FDX",  "LUV",  "DAL",  "UAL",   "SPY"
-]
-const START_DATE = Date(2009, 1, 1)
+export START_DATE, resolve_ticker, get_sp500_constituents, get_all_sp500_tickers,
+       load_ticker_data, load_all_data, TICKER_REMAP, TICKER_BLACKLIST
 
-const TICKER_REMAP = Dict(
-    "UTX"   => "RTX",
-    "FB"    => "META",
-    "GOOG"  => "GOOGL",
-    "BRK.A" => "BRK-B",
-    "TWX"   => "WBD",
-    "ALTR"  => "INTC",
-    "FISV"  => "FIS",
+const START_DATE = Date(2000, 1, 3)
+
+const TICKER_REMAP = Dict{String, String}(
+    "FB"   => "META",
+    "GOOG" => "GOOGL",
+    "UTX"  => "RTX",
+    "RTN"  => "RTX",
+    "TWTR" => "TWTR",
+    "CME"  => "CME",
+    "LBRDK" => "LBRDK",
+    "LBRDA" => "LBRDA",
+    "SPLK" => "SPLK",
+    "KHC"  => "KHC",
+    "MNST" => "MNST",
+    "XRX"  => "XRX",
+    "NBL"  => "NBL",
+    "PCLN" => "BKNG",
+    "WAG"  => "WBA",
+    "CELG" => "BMY",
+    "AGN"  => "ABBV",
+    "HRS"  => "LHX",
+    "DOW"  => "DOW",
+    "NAVI" => "NAVI",
+    "UAA"  => "UA",
+    "UA"   => "UA",
+    "LUMN" => "LUMN",
+    "SYMC" => "GEN",
+    "VIAB" => "PARA",
+    "CBS"  => "PARA",
+    "DISCA" => "WBD",
+    "DISCK" => "WBD",
+    "ATVI" => "MSFT",
+    "SIRI" => "SIRI",
+    "FRC"  => "FRC",
+    "SIVB" => "SIVB",
+    "SNPS" => "SNPS",
+    "ADSK" => "ADSK",
+    "CSRA" => "GD",
+    "BRCM" => "AVGO"
 )
 
-const TICKER_BLACKLIST = Set([
-    "CHK", "RRC", "SWN", "EQT", "AR", "NOV", "HAL", "MRO", "DVN",
-    "TWX", "WBD", "TWTR", "LEH", "BSC", "WM", "FNM", "FRE", "WPO",
-    "APSO", "KSO", "MRSH", "SYF", "DFS", "NTRS", "IVZ", "BEN",
-    "CINF", "L", "PRU", "AFL", "HUM", "CI", "STT", "BK", "LUV",
-    "DAL", "UAL", "F", "CMI", "HPQ", "ORCL", "NOC", "GD", "LMT",
-    "BEN", "TROW", "COF", "C"
+const TICKER_BLACKLIST = Set{String}([
+    "ENRN", "LEH", "MER", "MHP", "FNM", "FRE", "BSC", "WB", "WAMU", "WM", "ALXN",
+    "TWC", "TWX", "CERN", "XLNX", "LBTYA", "LBTYK", "NWL", "NBLX",
+    "XEC", "PSX", "KSU", "NSC", "HPE", "JDSU", "ERIC", "NOK", "LGND",
+    "BBBY", "BBBYQ", "HTZ", "CHK", "MHK", "DTV", "EMC", "SPLS", "GGP",
+    "TIF", "CBRE", "CBG", "KODK", "YHOO", "AABA",
+    "JCP", "RSH", "PBI", "KFT", "ABN", "MCI", "NOKIA"
 ])
 
-function get_data_path(ticker::String)
-    return joinpath("data", ticker * ".csv")
+const _SP500_CACHE = Ref{Union{Nothing,DataFrame}}(nothing)
+
+function _candidate_sp500_paths()
+    return [
+        joinpath(pwd(), "sp500_ticker_start_end.csv"),
+        joinpath(pwd(), "data", "sp500_ticker_start_end.csv"),
+        joinpath(@__DIR__, "sp500_ticker_start_end.csv"),
+        joinpath(@__DIR__, "..", "data", "sp500_ticker_start_end.csv")
+    ]
 end
 
-function fetch_yahoo_finance_json(ticker::String)
-    url = "https://query1.finance.yahoo.com/v8/finance/chart/" * ticker *
-          "?period1=$(Int(Dates.value(DateTime(START_DATE)) * 86400))" *
-          "&period2=$(Int(Dates.value(DateTime(today())) * 86400))&interval=1d"
-    try
-        response = HTTP.get(url)
-        data = JSON3.read(response.body)
-        result = data.chart.result[1]
-        timestamps = result.timestamp
-        indicators = result.indicators[1]
-        close  = indicators.quote[1].close
-        open_  = indicators.quote[1].open
-        high   = indicators.quote[1].high
-        low    = indicators.quote[1].low
-        volume = indicators.quote[1].volume
-        dates  = [Date(Dates.unix2datetime(t)) for t in timestamps]
-        df = DataFrame(
-            date   = dates,
-            open   = Float64.(open_),
-            high   = Float64.(high),
-            low    = Float64.(low),
-            close  = Float64.(close),
-            volume = Float64.(volume)
-        )
-        return df
-    catch e
-        @warn "Failed to fetch $ticker from Yahoo JSON: $e"
-        return nothing
-    end
+function _candidate_price_paths(ticker::String)
+    t = uppercase(ticker)
+    return [
+        joinpath(pwd(), "data", "$t.csv"),
+        joinpath(pwd(), "$t.csv"),
+        joinpath(@__DIR__, "data", "$t.csv"),
+        joinpath(@__DIR__, "..", "data", "$t.csv")
+    ]
 end
 
-function load_ticker_data(ticker::String)
-    path = get_data_path(ticker)
-    if isfile(path)
-        return CSV.read(path, DataFrame)
-    end
+function _normalize_name(s::AbstractString)
+    return lowercase(replace(String(s), " " => "_"))
+end
 
-    @info "Fetching data for $ticker..."
-    df = nothing
-    try
-        ts = MarketData.yahoo(Symbol(ticker))
-        df = DataFrame(ts)
-        if hasproperty(df, :timestamp)
-            DataFrames.rename!(df, :timestamp => :date)
+function _parse_date_column(df::DataFrame)
+    date_col = nothing
+    for nm in names(df)
+        n = _normalize_name(String(nm))
+        if n in ("date", "timestamp", "time")
+            date_col = nm
+            break
         end
-    catch e
-        @warn "MarketData.jl failed for $ticker, trying Yahoo JSON fallback: $e"
-        df = fetch_yahoo_finance_json(ticker)
     end
+    date_col === nothing && error("No date column found.")
+    if eltype(df[!, date_col]) <: Date
+        return Symbol(date_col)
+    end
+    df[!, date_col] = Date.(string.(df[!, date_col]))
+    return Symbol(date_col)
+end
 
-    if df !== nothing
-        DataFrames.rename!(df, [lowercase(name) for name in names(df)])
-        # Replace nothing with missing so CSV.write doesn't choke
-        for col in names(df)
-            if any(x -> x === nothing, df[!, col])
-                df[!, col] = [x === nothing ? missing : x for x in df[!, col]]
+function _coalesce_numeric_column(df::DataFrame, candidates::Vector{String})
+    for cand in candidates
+        for nm in names(df)
+            if _normalize_name(String(nm)) == cand
+                return Symbol(nm)
             end
         end
-        if hasproperty(df, :date)
-            df = df[df.date .>= START_DATE, :]
-        end
-        CSV.write(path, df)
-        return df
-    else
-        @error "Could not retrieve data for $ticker"
-        return nothing
     end
+    return nothing
+end
+
+function _standardize_price_frame(df::DataFrame)
+    date_sym = _parse_date_column(df)
+
+    close_sym = _coalesce_numeric_column(df, ["adj_close", "adjclose", "adjusted_close", "close"])
+    close_sym === nothing && error("No close / adjusted close column found.")
+
+    open_sym  = _coalesce_numeric_column(df, ["open"])
+    high_sym  = _coalesce_numeric_column(df, ["high"])
+    low_sym   = _coalesce_numeric_column(df, ["low"])
+    vol_sym   = _coalesce_numeric_column(df, ["volume", "vol"])
+
+    out = DataFrame(
+        date = Date.(df[!, date_sym]),
+        close = Float64.(coalesce.(df[!, close_sym], missing))
+    )
+
+    if open_sym !== nothing
+        out.open = Float64.(coalesce.(df[!, open_sym], missing))
+    else
+        out.open = copy(out.close)
+    end
+
+    if high_sym !== nothing
+        out.high = Float64.(coalesce.(df[!, high_sym], missing))
+    else
+        out.high = copy(out.close)
+    end
+
+    if low_sym !== nothing
+        out.low = Float64.(coalesce.(df[!, low_sym], missing))
+    else
+        out.low = copy(out.close)
+    end
+
+    if vol_sym !== nothing
+        out.volume = Float64.(coalesce.(df[!, vol_sym], missing))
+    else
+        out.volume = fill(0.0, nrow(out))
+    end
+
+    sort!(out, :date)
+    unique!(out, :date)
+    filter!(row -> isfinite(row.close), out)
+    return out
+end
+
+function _get_sp500_df()
+    if _SP500_CACHE[] !== nothing
+        return _SP500_CACHE[]
+    end
+
+    for path in _candidate_sp500_paths()
+        if isfile(path)
+            df = CSV.read(path, DataFrame)
+            _SP500_CACHE[] = df
+            return df
+        end
+    end
+
+    error("Could not find sp500_ticker_start_end.csv. Place it in project root or data/ directory.")
 end
 
 function resolve_ticker(ticker::AbstractString)
-    get(TICKER_REMAP, String(ticker), String(ticker))
+    t = uppercase(strip(String(ticker)))
+    return get(TICKER_REMAP, t, t)
 end
 
-const _SP500_CACHE = Ref{Union{Nothing, DataFrame}}(nothing)
+function _normalize_sp500_columns(df::DataFrame)
+    colmap = Dict{Symbol, Symbol}()
 
-function _get_sp500_df()
-    if _SP500_CACHE[] === nothing
-        csv_path = joinpath("data", "sp500_ticker_start_end.csv")
-        if !isfile(csv_path)
-            return nothing
+    for nm in names(df)
+        n = _normalize_name(String(nm))
+        if n in ("ticker", "symbol")
+            colmap[Symbol(nm)] = :ticker
+        elseif n in ("start", "start_date", "date_start", "from")
+            colmap[Symbol(nm)] = :start_date
+        elseif n in ("end", "end_date", "date_end", "to")
+            colmap[Symbol(nm)] = :end_date
         end
-        _SP500_CACHE[] = CSV.read(csv_path, DataFrame)
     end
-    return _SP500_CACHE[]
+
+    rename!(df, colmap)
+
+    if !haskey(colmap, :ticker)
+        error("SP500 constituents CSV must contain a ticker/symbol column.")
+    end
+    if !haskey(colmap, :start_date)
+        error("SP500 constituents CSV must contain a start/start_date column.")
+    end
+
+    if :end_date ∉ names(df)
+        df.end_date = fill(missing, nrow(df))
+    end
+
+    df.ticker = uppercase.(strip.(string.(df.ticker)))
+    df.start_date = Date.(string.(df.start_date))
+    df.end_date = [ismissing(x) || isempty(string(x)) ? Date(9999,12,31) : Date(string(x)) for x in df.end_date]
+
+    return df
 end
 
 function get_sp500_constituents(date::Date)
-    df = _get_sp500_df()
-    if df === nothing
-        @warn "S&P 500 constituents CSV not found. Falling back to hardcoded TICKERS."
-        return TICKERS
-    end
-
-    active = String[]
-    for row in eachrow(df)
-        s = isa(row.start_date, Date) ? row.start_date : Date(string(row.start_date))
-        if ismissing(row.end_date) || row.end_date === nothing || strip(string(row.end_date)) == ""
-            e = today()
-        else
-            e = isa(row.end_date, Date) ? row.end_date : Date(string(row.end_date))
-        end
-        if s <= date <= e
-            push!(active, row.ticker)
-        end
-    end
-    return active
+    df = _normalize_sp500_columns(copy(_get_sp500_df()))
+    mask = (df.start_date .<= date) .& (df.end_date .>= date)
+    tickers = unique(df.ticker[mask])
+    tickers = filter(t -> !(t in TICKER_BLACKLIST), tickers)
+    return tickers
 end
 
 function get_all_sp500_tickers()
-    df = _get_sp500_df()
-    if df === nothing
-        @warn "S&P 500 constituents CSV not found. Falling back to hardcoded TICKERS."
-        return TICKERS
-    end
-    today_date = today()
-    relevant = String[]
+    df = _normalize_sp500_columns(copy(_get_sp500_df()))
+    tickers = unique(df.ticker)
+    tickers = filter(t -> !(t in TICKER_BLACKLIST), tickers)
+    return unique(resolve_ticker.(tickers))
+end
 
-    for row in eachrow(df)
-        s = isa(row.start_date, Date) ? row.start_date : Date(string(row.start_date))
-        if ismissing(row.end_date) || row.end_date === nothing || strip(string(row.end_date)) == ""
-            e = today_date
-        else
-            e = isa(row.end_date, Date) ? row.end_date : Date(string(row.end_date))
-        end
-        # Overlap check: ticker was in S&P 500 at some point during [START_DATE, today]
-        if s <= today_date && e >= START_DATE
-            resolved = resolve_ticker(row.ticker)
-            resolved ∈ TICKER_BLACKLIST && continue
-            push!(relevant, resolved)
+function load_ticker_data(ticker::AbstractString)
+    t = resolve_ticker(ticker)
+    t in TICKER_BLACKLIST && return nothing
+
+    for path in _candidate_price_paths(t)
+        if isfile(path)
+            raw = CSV.read(path, DataFrame)
+            return _standardize_price_frame(raw)
         end
     end
 
-    return unique(relevant)
+    return nothing
 end
 
 function load_all_data()
-    tickers = get_all_sp500_tickers()
     all_data = Dict{String, DataFrame}()
-    for ticker in tickers
-        resolved = resolve_ticker(ticker)
-        resolved ∈ TICKER_BLACKLIST && continue
-        df = load_ticker_data(resolved)
-        if df !== nothing
-            all_data[resolved] = df
+    for ticker in get_all_sp500_tickers()
+        try
+            df = load_ticker_data(ticker)
+            if df !== nothing && nrow(df) > 0
+                all_data[ticker] = df
+            end
+        catch
+            continue
         end
     end
     return all_data

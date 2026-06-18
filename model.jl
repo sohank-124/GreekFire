@@ -30,30 +30,31 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         max_depth=5
     )
     mach_rf = machine(rf_model, X_train_clean, y_train_clean)
-    MLJ.fit!(mach_rf, verbosity=0)
+    _t_rf = @elapsed MLJ.fit!(mach_rf, verbosity=0)
 
     # 2. Linear Regression
     lr_model = MLJLinearModels.LinearRegressor()
     mach_lr = machine(lr_model, X_train_clean, y_train_clean)
-    MLJ.fit!(mach_lr, verbosity=0)
+    _t_lr = @elapsed MLJ.fit!(mach_lr, verbosity=0)
 
-    # 3. XGBoost (CRITICAL FIX: nthread=1)
+    # 3. XGBoost (threaded: nthread=8)
     X_matrix_clean = Matrix{Float64}(X_train_clean)
     y_vector_clean = Vector{Float64}(y_train_clean)
     
     dtrain = XGBoost.DMatrix(X_matrix_clean, label=y_vector_clean)
-    mach_xgb = XGBoost.xgboost(dtrain, 
-        num_round=150, 
-        nthread=1,     # <--- This stops the 8 cores from fighting each other
+    _t_xgb = @elapsed mach_xgb = XGBoost.xgboost(dtrain,
+        num_round=150,
+        nthread=8,  # explicit: 8 threads
         max_depth=3,
         eta=0.01,
         max_delta_step=1,
         min_child_weight=3,
         gamma=0.1,
-        reg_lambda=5,
+        reg_lambda=1,
         subsample=0.7,
-        colsample_bytree=0.7,
+        colsample_bytree=1.0,
         objective="reg:squarederror",
+        verbosity=0,
     )
 
     pred_rf = nothing
@@ -69,6 +70,7 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         importance_dict[String(item[1])] = Float64(item[2])
     end
 
+    println("[BENCHMARK] RF=$(round(_t_rf; digits=3))s LR=$(round(_t_lr; digits=3))s XGB=$(round(_t_xgb; digits=3))s")
     return pred_rf, pred_lr, pred_xgb, importance_dict, mach_rf, mach_lr, mach_xgb
 end
 

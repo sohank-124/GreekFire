@@ -1,341 +1,252 @@
 module Features
 
-using DataFrames, Statistics, LinearAlgebra, Distributions, Dates
+using DataFrames, Dates, Statistics
 
-function compute_rsi(prices; period=14)
-    n = length(prices)
-    rsi = fill(NaN, n)
-    if n <= period
-        return rsi
+export calculate_features
+
+const FORECAST_HORIZON = 5
+const LOOKBACK_5 = 5
+const LOOKBACK_10 = 10
+const LOOKBACK_20 = 20
+const LOOKBACK_60 = 60
+
+function _standardize_price_df(df::DataFrame)
+    if !hasproperty(df, :date)
+        error("DataFrame must contain a date column.")
     end
 
-    diffs = diff(prices)
-    gains = max.(0.0, diffs)
-    losses = max.(0.0, -diffs)
+    close_sym = hasproperty(df, :close) ? :close : (hasproperty(df, :adj_close) ? :adj_close : nothing)
+    close_sym === nothing && error("Price frame must contain close or adj_close.")
 
-    avg_gain = sum(gains[1:period]) / period
-    avg_loss = sum(losses[1:period]) / period
+    out = DataFrame(
+        date = Date.(df.date),
+        close = Float64.(coalesce.(df[!, close_sym], missing))
+    )
 
-    for i in (period + 1):n
-        if i == period + 1
-        else
-            avg_gain = (avg_gain * (period - 1) + gains[i-1]) / period
-            avg_loss = (avg_loss * (period - 1) + losses[i-1]) / period
-        end
-        
-        if avg_loss == 0
-            rsi[i] = 100.0
-        else
-            rs = avg_gain / avg_loss
-            rsi[i] = 100.0 - (100.0 / (1.0 + rs))
-        end
+    if hasproperty(df, :open)
+        out.open = Float64.(coalesce.(df.open, missing))
+    else
+        out.open = copy(out.close)
     end
-    return rsi
+
+    if hasproperty(df, :high)
+        out.high = Float64.(coalesce.(df.high, missing))
+    else
+        out.high = copy(out.close)
+    end
+
+    if hasproperty(df, :low)
+        out.low = Float64.(coalesce.(df.low, missing))
+    else
+        out.low = copy(out.close)
+    end
+
+    if hasproperty(df, :volume)
+        out.volume = Float64.(coalesce.(df.volume, missing))
+    else
+        out.volume = fill(0.0, nrow(out))
+    end
+
+    sort!(out, :date)
+    unique!(out, :date)
+    filter!(row -> isfinite(row.close), out)
+    return out
 end
 
-function compute_macd(prices; fast=12, slow=26, signal=9)
-    n = length(prices)
-    macd_line = fill(NaN, n)
-    signal_line = fill(NaN, n)
-    histogram = fill(NaN, n)
+function _align_on_common_dates(stock_df::DataFrame, spy_df::DataFrame)
+    stock = _standardize_price_df(stock_df)
+    spy   = _standardize_price_df(spy_df)
 
-    function ema(data, period)
-        res = fill(NaN, length(data))
-        if length(data) < period return res end
-        alpha = 2.0 / (period + 1)
-        res[period] = sum(data[1:period]) / period
-        for i in (period + 1):length(data)
-            res[i] = data[i] * alpha + res[i-1] * (1.0 - alpha)
-        end
-        return res
-    end
+    common = intersect(stock.date, spy.date)
+    sort!(common)
 
-    fast_ema = ema(prices, fast)
-    slow_ema = ema(prices, slow)
+    stock = stock[in.(stock.date, Ref(common)), :]
+    spy   = spy[in.(spy.date, Ref(common)), :]
 
-    for i in 1:n
-        macd_line[i] = fast_ema[i] - slow_ema[i]
-    end
+    sort!(stock, :date)
+    sort!(spy, :date)
 
-    valid_macd = macd_line[(!isnan).(macd_line)]
-    if length(valid_macd) >= signal
-        sig_vals = ema(valid_macd, signal)
-        valid_indices = findall(!isnan, macd_line)
-        for i in 1:length(sig_vals)
-            idx = valid_indices[i]
-            signal_line[idx] = sig_vals[i]
-        end
-    end
-
-    for i in 1:n
-        histogram[i] = macd_line[i] - signal_line[i]
-    end
-
-    return macd_line, signal_line, histogram
+    return stock, spy
 end
 
-function compute_bollinger_pos(prices; period=20, std_devs=2.0)
-    n = length(prices)
-    pos = fill(NaN, n)
-    for i in (period):n
-        window = prices[(i-period+1):i]
-        mu = mean(window)
-        sigma = std(window)
-        upper = mu + std_devs * sigma
-        lower = mu - std_devs * sigma
-        if upper != lower
-            pos[i] = (prices[i] - lower) / (upper - lower)
-        end
-    end
-    return pos
+function _rolling_mean(x::Vector{Float64}, i::Int, window::Int)
+    lo = max(1, i - window + 1)
+    return mean(@view x[lo:i])
 end
 
-function compute_sma_ratio(prices; period=20)
-    n = length(prices)
-    ratio = fill(NaN, n)
-    for i in (period):n
-        window = prices[(i-period+1):i]
-        ratio[i] = prices[i] / mean(window)
-    end
-    return ratio
+function _rolling_std(x::Vector{Float64}, i::Int, window::Int)
+    lo = max(1, i - window + 1)
+    vals = @view x[lo:i]
+    return length(vals) > 1 ? std(vals) : 0.0
 end
 
-function compute_atr_norm(high, low, close; period=14)
-    n = length(close)
-    atr_norm = fill(NaN, n)
-    tr = fill(NaN, n-1)
-    for i in 1:(n-1)
-        tr[i] = max(high[i+1] - low[i+1], 
-                    max(abs(high[i+1] - close[i]), 
-                        abs(low[i+1] - close[i])))
+function _pct_change(curr::Float64, prev::Float64)
+    if !isfinite(curr) || !isfinite(prev) || prev == 0.0
+        return NaN
     end
-
-    atr = fill(NaN, n)
-    if n > period
-        current_atr = sum(tr[1:period]) / period
-        atr[period+1] = current_atr
-        for i in (period+2):n
-            current_atr = (current_atr * (period - 1) + tr[i-1]) / period
-            atr[i] = current_atr
-        end
-    end
-
-    for i in 1:n
-        atr_norm[i] = atr[i] / close[i]
-    end
-    return atr_norm
+    return curr / prev - 1.0
 end
 
-function compute_momentum(prices; period=20)
-    n = length(prices)
-    mom = fill(NaN, n)
-    for i in (period+1):n
-        mom[i] = (prices[i] / prices[i-period]) - 1.0
-    end
-    return mom
-end
+function calculate_features(stock_df::DataFrame, spy_df::DataFrame; forecast_horizon::Int=FORECAST_HORIZON)
+    stock, spy = _align_on_common_dates(stock_df, spy_df)
 
-function compute_52wk_pos(prices)
-    n = length(prices)
-    pos = fill(NaN, n)
-    window = 252
-    for i in (window):n
-        slice = prices[(i-window+1):i]
-        low = minimum(slice)
-        high = maximum(slice)
-        if high != low
-            pos[i] = (prices[i] - low) / (high - low)
-        end
-    end
-    return pos
-end
-
-function black_scholes_greeks(S, IV)
-    T = 30.0 / 365.0
-    r = 0.05
-    K = S
-
-    try
-        if IV <= 0 || S <= 0
-            return NaN, NaN, NaN, NaN
-        end
-
-        d1 = (log(S/K) + (r + 0.5 * IV^2) * T) / (IV * sqrt(T))
-        d2 = d1 - IV * sqrt(T)
-
-        phi = Normal(0, 1)
-        
-        delta = cdf(phi, d1)
-        gamma = pdf(phi, d1) / (S * IV * sqrt(T))
-        vega = S * pdf(phi, d1) * sqrt(T) / 100.0
-        theta = (- (S * pdf(phi, d1) * IV) / (2 * sqrt(T)) - r * K * exp(-r * T) * cdf(phi, d2)) / 365.0
-
-        return delta, gamma, theta, vega
-    catch
-        return NaN, NaN, NaN, NaN
-    end
-end
-
-function compute_iv_rank(ivs)
-    n = length(ivs)
-    rank = fill(NaN, n)
-    window = 252
-    for i in (window):n
-        slice = ivs[(i-window+1):i]
-        valid_slice = slice[(!isnan).(slice)]
-        if isempty(valid_slice)
-            rank[i] = NaN
-            continue
-        end
-        low = minimum(valid_slice)
-        high = maximum(valid_slice)
-        if high != low
-            rank[i] = (ivs[i] - low) / (high - low)
-        end
-    end
-    return rank
-end
-
-# NEW: Correlation feature function
-function compute_rolling_correlation(rets1, rets2; period=20)
-    n = length(rets1)
-    corr = fill(NaN, n)
-    if n < period return corr end
-    
-    for i in period:n
-        w1 = rets1[(i-period+1):i]
-        w2 = rets2[(i-period+1):i]
-        if std(w1) > 0 && std(w2) > 0
-            corr[i] = cor(w1, w2)
-        end
-    end
-    return corr
-end
-
-function calculate_features(df, spy_df)
-    # Align by date to prevent index mismatch between stock and SPY
-    common_dates = intersect(df.date, spy_df.date)
-    df = df[in.(df.date, Ref(common_dates)), :]
-    spy_df = spy_df[in.(spy_df.date, Ref(common_dates)), :]
-    sort!(df, :date)
-    sort!(spy_df, :date)
-    
-    # Drop rows with missing price data (delisted tickers, weekends, etc.)
-    valid_rows = .!ismissing.(df.close) .& .!isnothing.(df.close) .&
-                 .!ismissing.(df.high) .& .!isnothing.(df.high) .&
-                 .!ismissing.(df.low) .& .!isnothing.(df.low) .&
-                 .!ismissing.(df.volume) .& .!isnothing.(df.volume)
-    df = df[valid_rows, :]
-    
-    # Also drop any missing SPY data just in case
-    spy_valid = .!ismissing.(spy_df.close) .& .!isnothing.(spy_df.close)
-    spy_df = spy_df[spy_valid, :]
-    
-    # Re-align after independent filtering — dates may diverge
-    common_dates = intersect(df.date, spy_df.date)
-    df = df[in.(df.date, Ref(common_dates)), :]
-    spy_df = spy_df[in.(spy_df.date, Ref(common_dates)), :]
-    sort!(df, :date)
-    sort!(spy_df, :date)
-    
-    # If too few rows remain, return empty DataFrame to avoid downstream errors
-    if nrow(df) < 50 || nrow(spy_df) < 50
+    n = nrow(stock)
+    if n < LOOKBACK_60 + forecast_horizon + 1
         return DataFrame()
     end
-    
-    # Force Float64 conversion to prevent Union type leakage
-    prices  = Float64.(coalesce.(df.close, NaN))
-    highs   = Float64.(coalesce.(df.high, NaN))
-    lows    = Float64.(coalesce.(df.low, NaN))
-    volumes = Float64.(coalesce.(df.volume, NaN))
-    
-    n = length(prices)
-    
-    rsi = compute_rsi(prices)
-    macd_line, signal_line, macd_hist = compute_macd(prices)
-    bb_pos = compute_bollinger_pos(prices)
-    
-    # SMAs
-    sma20_ratio = compute_sma_ratio(prices; period=20)
-    sma50_ratio = compute_sma_ratio(prices; period=50)
-    sma200_ratio = compute_sma_ratio(prices; period=200) # ADDED
-    
-    atr_norm = compute_atr_norm(highs, lows, prices)
-    
-    vol_avg20 = fill(NaN, n)
-    for i in 20:n
-        vol_avg20[i] = mean(volumes[(i-19):i])
-    end
-    vol_ratio = volumes ./ vol_avg20
-    
-    mom = compute_momentum(prices)
-    pos52 = compute_52wk_pos(prices)
-    
-    log_rets = diff(log.(prices))
-    ivs = fill(NaN, n)
-    for i in 31:n
-        window = log_rets[(i-30):(i-1)]
-        ivs[i] = std(window) * sqrt(252)
-    end
-    
-    iv_rank = compute_iv_rank(ivs)
-    
-    deltas = fill(NaN, n)
-    gammas = fill(NaN, n)
-    thetas = fill(NaN, n)
-    vegas = fill(NaN, n)
-    
-    for i in 1:n
-        d, g, t, v = black_scholes_greeks(prices[i], ivs[i])
-        deltas[i] = d
-        gammas[i] = g
-        thetas[i] = t
-        vegas[i] = v
-    end
-    
-    # NEW: Calculating returns for SPY correlation
-    stock_rets = fill(NaN, n)
-    spy_rets = fill(NaN, n)
-    stock_rets[2:end] = diff(prices) ./ prices[1:end-1]
-    spy_rets[2:end] = diff(spy_df.close) ./ spy_df.close[1:end-1]
-    
-    spy_corr = compute_rolling_correlation(stock_rets, spy_rets; period=20) # ADDED
-    
-    # Target: forward 1-week excess return vs SPY
-    target = fill(NaN, n)
-    spy_prices = spy_df.close
-    
-    for i in 1:(n-5)
-        stock_ret = (prices[i+5] / prices[i]) - 1.0
-        spy_ret = (spy_prices[i+5] / spy_prices[i]) - 1.0
-        target[i] = stock_ret - spy_ret
+
+    close = Float64.(stock.close)
+    spy_close = Float64.(spy.close)
+    dates = stock.date
+
+    has_volume = hasproperty(stock, :volume)
+    volume = has_volume ? Float64.(stock.volume) : fill(0.0, n)
+
+    rows = DataFrame(
+        date = Date[],
+        ret_5 = Float64[],
+        ret_20 = Float64[],
+        sma_20 = Float64[],
+        sma_60 = Float64[],
+        vol_ratio = Float64[],
+        ret_vol_ratio = Float64[],
+        volume_momentum = Float64[],
+        rel_mom_5 = Float64[],
+        mom_quality_10 = Float64[],
+        trend_r2_20 = Float64[],
+        momentum_curve = Float64[],
+        idio_vol_20 = Float64[],
+        residual_momentum_20 = Float64[],
+        volume_20 = Float64[],
+        dollar_volume_ratio = Float64[],
+        target = Float64[]
+    )
+
+    start_i = LOOKBACK_60 + 1
+
+    for i in start_i:(n - forecast_horizon)
+        c = close[i]
+        c5  = close[max(1, i - LOOKBACK_5)]
+        c20 = close[max(1, i - LOOKBACK_20)]
+
+        s5  = spy_close[max(1, i - LOOKBACK_5)]
+
+        spy_ret_5_val = _pct_change(spy_close[i], s5)
+
+        stock_ret_5_val = _pct_change(c, c5)
+        stock_ret_20_val = _pct_change(c, c20)
+
+        past_rets = Float64[]
+        for j in max(2, i - LOOKBACK_20 + 1):i
+            push!(past_rets, _pct_change(close[j], close[j-1]))
+        end
+
+        vol_10 = _rolling_std(past_rets, length(past_rets), min(10, length(past_rets)))
+        vol_60_window = _rolling_std(past_rets, length(past_rets), min(60, length(past_rets)))
+        vol_ratio_val = (isfinite(vol_10) && isfinite(vol_60_window) && vol_60_window > 1e-10) ? vol_10 / vol_60_window : NaN
+
+        vol_20_stock = _rolling_std(past_rets, length(past_rets), min(20, length(past_rets)))
+        ret_vol_ratio_val = (isfinite(stock_ret_20_val) && isfinite(vol_20_stock) && vol_20_stock > 1e-10) ? stock_ret_20_val / vol_20_stock : NaN
+
+        rel_mom_5_val = stock_ret_5_val - spy_ret_5_val
+
+        mom_quality_10_val = mean(past_rets[max(1, end-9):end] .> 0.0)
+
+        closes_20 = @view close[max(1, i-19):i]
+        n_trend = length(closes_20)
+        trend_r2_20_val = if n_trend >= 5
+            x = 1.0:n_trend
+            y = Float64.(closes_20)
+            x_bar = mean(x)
+            y_bar = mean(y)
+            ss_xy = sum((x[j] - x_bar) * (y[j] - y_bar) for j in 1:n_trend)
+            ss_xx = sum((x[j] - x_bar)^2 for j in 1:n_trend)
+            if ss_xx > 1e-15
+                b = ss_xy / ss_xx
+                a = y_bar - b * x_bar
+                ss_res = sum((y[j] - (a + b * x[j]))^2 for j in 1:n_trend)
+                ss_tot = sum((y[j] - y_bar)^2 for j in 1:n_trend)
+                ss_tot > 1e-15 ? 1.0 - ss_res / ss_tot : NaN
+            else
+                NaN
+            end
+        else
+            NaN
+        end
+
+        momentum_curve_val = stock_ret_5_val - stock_ret_20_val
+
+        vol_5_mean = has_volume ? mean(volume[max(1, i - LOOKBACK_5 + 1):i]) : NaN
+        vol_20_mean = has_volume ? mean(volume[max(1, i - LOOKBACK_20 + 1):i]) : NaN
+        volume_momentum_val = (isfinite(vol_5_mean) && isfinite(vol_20_mean) && vol_20_mean > 0) ? vol_5_mean / vol_20_mean : NaN
+
+        # SPY returns for beta estimation
+        spy_past_rets = Float64[]
+        for j in max(2, i - LOOKBACK_20 + 1):i
+            push!(spy_past_rets, _pct_change(spy_close[j], spy_close[j-1]))
+        end
+
+        # Beta regression: stock_ret = α + β * spy_ret + ε
+        beta_20_val = NaN
+        idio_vol_20_val = NaN
+        residual_momentum_20_val = NaN
+        if length(past_rets) >= 10
+            valid = isfinite.(past_rets) .& isfinite.(spy_past_rets)
+            x = spy_past_rets[valid]
+            y = past_rets[valid]
+            n_valid = length(x)
+            if n_valid >= 10
+                x_bar = mean(x)
+                y_bar = mean(y)
+                cov_xy = sum((x[j] - x_bar) * (y[j] - y_bar) for j in 1:n_valid) / n_valid
+                var_x = sum((x[j] - x_bar)^2 for j in 1:n_valid) / n_valid
+                if var_x > 1e-15
+                    beta_20_val = cov_xy / var_x
+                    alpha = y_bar - beta_20_val * x_bar
+                    residuals = [y[j] - (alpha + beta_20_val * x[j]) for j in 1:n_valid]
+                    idio_vol_20_val = std(residuals)
+                    residual_momentum_20_val = sum(residuals)
+                end
+            end
+        end
+
+        # Dollar volume ratio
+        dollar_volume_ratio_val = NaN
+        if has_volume
+            dv_5 = mean(volume[max(1, i - LOOKBACK_5 + 1):i] .* close[max(1, i - LOOKBACK_5 + 1):i])
+            dv_20 = mean(volume[max(1, i - LOOKBACK_20 + 1):i] .* close[max(1, i - LOOKBACK_20 + 1):i])
+            dollar_volume_ratio_val = (isfinite(dv_5) && isfinite(dv_20) && dv_20 > 0) ? dv_5 / dv_20 : NaN
+        end
+
+        future_price = close[i + forecast_horizon]
+        target = _pct_change(future_price, c)
+
+        row = (
+            date = dates[i],
+            ret_5 = stock_ret_5_val,
+            ret_20 = stock_ret_20_val,
+            sma_20 = c / max(_rolling_mean(close, i, 20), 1e-10) - 1.0,
+            sma_60 = c / max(_rolling_mean(close, i, 60), 1e-10) - 1.0,
+            vol_ratio = vol_ratio_val,
+            ret_vol_ratio = ret_vol_ratio_val,
+            volume_momentum = volume_momentum_val,
+            rel_mom_5 = rel_mom_5_val,
+            mom_quality_10 = mom_quality_10_val,
+            trend_r2_20 = trend_r2_20_val,
+            momentum_curve = momentum_curve_val,
+            idio_vol_20 = idio_vol_20_val,
+            residual_momentum_20 = residual_momentum_20_val,
+            volume_20 = vol_20_mean,
+            dollar_volume_ratio = dollar_volume_ratio_val,
+            target = target
+        )
+
+        if all(isfinite, collect(values(row)))
+            push!(rows, row)
+        end
     end
 
-    feat_df = DataFrame(
-        date = df.date,
-        rsi = rsi,
-        macd_line = macd_line,
-        macd_signal = signal_line,
-        macd_hist = macd_hist,
-        bb_pos = bb_pos,
-        sma20_ratio = sma20_ratio,
-        sma50_ratio = sma50_ratio,
-        sma200_ratio = sma200_ratio, # ADDED
-        atr_norm = atr_norm,
-        vol_ratio = vol_ratio,
-        momentum = mom,
-        pos52 = pos52,
-        iv = ivs,
-        iv_rank = iv_rank,
-        delta = deltas,
-        gamma = gammas,
-        theta = thetas,
-        vega = vegas,
-        spy_corr = spy_corr, # ADDED
-        target = target
-    )
-    
-    return feat_df
+    return rows
 end
 
 end

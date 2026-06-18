@@ -3,6 +3,13 @@ data/
 octave/*.csv
 octave/*.dat
 
+# Generated outputs
+graphify-out/
+__pycache__/
+debug.txt
+token-usage-output.txt
+benchmark_nthread*.txt
+
 # Julia
 .julia/
 *.jl~
