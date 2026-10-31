@@ -9,15 +9,50 @@ include("data_loader.jl")
 
 const TRAIN_WINDOW_DAYS = 252
 const STEP_DAYS = 5
-const TOP_N_STOCKS = 10
+const TOP_N_STOCKS = 1
 const BOTTOM_N_STOCKS = 5
 const STOP_LOSS_THRESHOLD = 0.07
+
+# Inverse-vol weighting exponent. 0.0 = equal weight, 0.25/0.50 = partial, 1.0 = pure inverse-vol.
+const INVERSE_VOL_EXPONENT = 0.50
+
+# Portfolio weighting method: "equal", "shifted", "shifted_inv_vol", "rank", "rank_inv_vol"
+const WEIGHTING_METHOD = "rank_inv_vol"
+
+# Inverse-vol exponent (used when method includes "inv_vol")
+const INV_VOL_EXPONENT = 0.25
+
+# Maximum position cap (0.0 = no cap, 0.20 = 20%, 0.15 = 15%)
+const MAX_POSITION_CAP = 0.0
 
 # Keep the old short/SPY overlay available, but off by default.
 const ENABLE_SHORT_OVERLAY = false
 const CONFIDENCE_THRESHOLD = 0.01
 
-const NON_FEATURE_COLS = Set(["date", "target", "ticker"])
+const NON_FEATURE_COLS = Set(["date", "target", "target_end_date", "ticker", "raw_idio_vol_20"])
+
+function one_way_turnover(previous_tickers, previous_weights, current_tickers, current_weights)
+    previous = Dict(string(ticker) => weight for (ticker, weight) in zip(previous_tickers, previous_weights))
+    current = Dict(string(ticker) => weight for (ticker, weight) in zip(current_tickers, current_weights))
+    stock_change = sum(abs(get(current, ticker, 0.0) - get(previous, ticker, 0.0))
+                       for ticker in union(keys(previous), keys(current)))
+    cash_change = abs(sum(current_weights) - sum(previous_weights))
+    return (stock_change + cash_change) / 2
+end
+
+function training_rows(master_df::DataFrame, step, active_set)
+    return master_df[
+        (master_df.date .>= step.train_start) .&
+        isfinite.(master_df.target) .&
+        (master_df.target_end_date .<= step.train_end) .&
+        (master_df.ticker .∈ Ref(active_set)), :]
+end
+
+function ensemble_predictions(rf_predictions, xgb_predictions, rf_weight::Float64)
+    0.0 <= rf_weight <= 1.0 || throw(ArgumentError("RF ensemble weight must be between 0 and 1"))
+    return xgb_predictions === nothing ? rf_predictions :
+           rf_weight .* rf_predictions .+ (1 - rf_weight) .* xgb_predictions
+end
 
 const SECTOR_MAP = Dict(
     "AAPL" => "Tech",     "MSFT" => "Tech",     "GOOGL" => "Tech",
@@ -87,11 +122,52 @@ function percentile_rank(values::AbstractVector)
     return out
 end
 
+# master_df is sorted by date. Rank contiguous ranges directly, avoiding a
+# full-table boolean scan and repeated SubDataFrame column replacement.
+function rank_columns!(df, columns)
+    lo = 1
+    while lo <= nrow(df)
+        hi = searchsortedlast(df.date, df.date[lo])
+        for col in columns
+            df[!, col][lo:hi] = percentile_rank(view(df[!, col], lo:hi))
+        end
+        lo = hi + 1
+    end
+    return df
+end
 
 
-function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
+
+function run_walk_forward(all_stock_data, spy_data;
+                           max_steps=nothing,
+                           weighting_method::String=WEIGHTING_METHOD,
+                           inv_vol_exponent::Float64=INV_VOL_EXPONENT,
+                           max_position_cap::Float64=MAX_POSITION_CAP,
+                           top_n::Int=TOP_N_STOCKS,
+                           exclude_features::Set{String}=Set{String}(),
+                           train_window::Union{Int,Symbol}=:fixed,
+                           first_test_date::Union{Date,Nothing}=nothing,
+                           transaction_cost_bps::Float64=10.0,
+                           slippage_bps::Float64=5.0,
+                           ensemble_rf_weight::Float64=0.5,
+                           membership_provider=DataLoader.get_sp500_constituents,
+                           prediction_mode::Symbol=:ensemble,
+                           verbose::Bool=false)
+    prediction_mode in (:ensemble, :momentum) || throw(ArgumentError("Unknown prediction mode"))
+    (isfinite(transaction_cost_bps) && transaction_cost_bps >= 0 &&
+     isfinite(slippage_bps) && slippage_bps >= 0) ||
+        throw(ArgumentError("Transaction costs and slippage must be finite and nonnegative"))
+    top_n > 0 || throw(ArgumentError("top_n must be positive"))
+    0 <= max_position_cap <= 1 || throw(ArgumentError("position cap must be in [0,1]"))
+    train_window isa Int && train_window <= 0 && throw(ArgumentError("training window must be positive"))
+    max_steps !== nothing && max_steps <= 0 && throw(ArgumentError("max_steps must be positive"))
+    cost_rate = (transaction_cost_bps + slippage_bps) / 10_000
+    0.0 <= ensemble_rf_weight <= 1.0 ||
+        throw(ArgumentError("RF ensemble weight must be between 0 and 1"))
+    ENABLE_SHORT_OVERLAY && cost_rate > 0 &&
+        throw(ArgumentError("Short/SPY overlay has no executable cost model; disable it for net reporting"))
     @info "Pre-computing feature matrices..."
-    tickers = collect(keys(all_stock_data))
+    tickers = sort(collect(keys(all_stock_data)))
     all_features_vec = Vector{Pair{String, DataFrame}}(undef, length(tickers))
 
     @threads for i in 1:length(tickers)
@@ -114,18 +190,18 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
     end
 
     master_df = vcat(all_dfs...)
+    # Risk sizing must use measured volatility, not its percentile rank.
+    master_df.raw_idio_vol_20 = copy(master_df.idio_vol_20)
     sort!(master_df, [:date, :ticker])
+    memberships = Dict(d => Set(membership_provider(d)) for d in unique(master_df.date))
+    filter!(row -> row.ticker in memberships[row.date], master_df)
 
     all_dates = sort(unique(master_df.date))
 
     @info "Computing cross-sectional rank_ret_20..."
     master_df[!, :rank_ret_20] = fill(0.5, nrow(master_df))
-    for d in all_dates
-        mask = master_df.date .== d
-        if any(mask)
-            master_df[mask, :rank_ret_20] = percentile_rank(master_df[mask, :ret_20])
-        end
-    end
+    master_df.rank_ret_20 = copy(master_df.ret_20)
+    rank_columns!(master_df, [:rank_ret_20])
 
     feature_cols = String[]
     for col in names(master_df)
@@ -138,35 +214,54 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
         error("No numeric feature columns found.")
     end
 
-    @info "Standardizing features cross-sectionally (percentile rank + clamp)..."
-    for sub_df in groupby(master_df, :date)
-        n = nrow(sub_df)
-        if n == 1
-            for col in feature_cols
-                col == "rank_ret_20" && continue
-                sub_df[:, Symbol(col)] = fill(0.5, n)
-            end
-        else
-            for col in feature_cols
-                col == "rank_ret_20" && continue
-                sub_df[:, Symbol(col)] = percentile_rank(sub_df[:, Symbol(col)])
-            end
-        end
+    # Apply user-supplied feature exclusions (CLI: --exclude-features=...).
+    # Done BEFORE cross-sectional standardization so dropped features aren't
+    # percentile-ranked either. Removes the column from `feature_cols` only;
+    # the underlying `master_df` columns remain untouched so the model
+    # bookkeeping stays consistent.
+    if !isempty(exclude_features)
+        n_excluded = count(x -> x in exclude_features, feature_cols)
+        filter!(x -> !(x in exclude_features), feature_cols)
+        println("[run_walk_forward] excluded $n_excluded feature column(s) via exclude_features kwarg")
     end
+
+    @info "Standardizing features cross-sectionally (percentile rank + clamp)..."
+    rank_columns!(master_df, filter(!=("rank_ret_20"), feature_cols))
 
     # Remove ret_20 from feature columns (redundant with rank_ret_20)
     filter!(x -> x != "ret_20", feature_cols)
 
-    trading_dates = all_dates
+    trading_dates = sort(unique(spy_data.date))
     start_date = DataLoader.START_DATE
 
+    # Resolve effective training window length.
+    #   train_window == :expanding -> 0 (sentinel: use full history from index 1)
+    #   train_window == :fixed     -> TRAIN_WINDOW_DAYS (module default)
+    #   train_window isa Int       -> that many days
+    effective_train_window = if train_window === :expanding
+        0
+    elseif train_window === :fixed
+        TRAIN_WINDOW_DAYS
+    elseif train_window isa Int
+        Int(train_window)
+    else
+        error("Unsupported train_window=$(repr(train_window)); expected :expanding, :fixed, or an Int")
+    end
+    println("[run_walk_forward] train_window=$(repr(train_window))  effective_days=$(effective_train_window == 0 ? "expanding (all history)" : effective_train_window)")
+
     steps = []
-    curr_idx = searchsortedfirst(trading_dates, start_date + Day(TRAIN_WINDOW_DAYS))
-    while curr_idx + STEP_DAYS <= length(trading_dates)
+    curr_idx = if effective_train_window == 0
+        max(2, searchsortedfirst(trading_dates, first(all_dates)) + TRAIN_WINDOW_DAYS)
+    else
+        max(searchsortedfirst(trading_dates, start_date), searchsortedfirst(trading_dates, first(all_dates))) + effective_train_window
+    end
+    while curr_idx + STEP_DAYS + 1 <= length(trading_dates)
         train_end   = trading_dates[curr_idx]
         test_start  = trading_dates[curr_idx + 1]
-        test_end    = trading_dates[min(curr_idx + STEP_DAYS, length(trading_dates))]
-        train_start = trading_dates[max(1, curr_idx - TRAIN_WINDOW_DAYS)]
+        test_end    = trading_dates[curr_idx + STEP_DAYS + 1]
+        train_start = effective_train_window == 0 ?
+            trading_dates[1] :
+            trading_dates[max(1, curr_idx - effective_train_window + 1)]
 
         push!(steps, (
             train_start = train_start,
@@ -177,26 +272,34 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
         curr_idx += STEP_DAYS
     end
 
+    if first_test_date !== nothing
+        filter!(step -> step.test_start >= first_test_date, steps)
+    end
+
     total_steps = length(steps)
     if max_steps !== nothing && max_steps < total_steps
         total_steps = max_steps
     end
 
-    results = Vector{Any}(undef, total_steps)
-    feature_importances_history = Vector{Any}(undef, total_steps)
+    results = Any[nothing for _ in 1:total_steps]
+    feature_importances_history = Any[nothing for _ in 1:total_steps]
     ic_history = Float64[]
     rank_ic_history = Float64[]
     decile_history = Vector{Vector{Float64}}()
 
     is_debug = max_steps !== nothing
     if is_debug
-        println("DEBUG MODE: Running $total_steps steps without progress bar")
+        println("Bounded run: $total_steps steps")
     end
     p = Progress(total_steps, desc = "Walk-Forward Loop")
 
     feature_syms = Symbol.(feature_cols)
     short_count = 0
     spy_count = 0
+    previous_long_tickers = String[]
+    previous_long_weights = Float64[]
+    previous_linear_tickers = String[]
+    previous_linear_weights = Float64[]
 
     if ENABLE_SHORT_OVERLAY
         println("Short/SPY overlay is enabled.")
@@ -210,12 +313,10 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
     for step in steps
         date = step.test_start
         if !haskey(pit_cache, date)
-            active = DataLoader.get_sp500_constituents(date)
+            active = membership_provider(date)
             pit_cache[date] = Set(DataLoader.resolve_ticker(t) for t in active)
         end
     end
-
-    rng = MersenneTwister(42)
 
     for i in 1:total_steps
         step = steps[i]
@@ -223,18 +324,14 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
         # Point-in-time universe: only use tickers active in S&P 500 on test_start
         active_set = pit_cache[step.test_start]
 
-        # CRITICAL LOOKAHEAD BIAS FIX: Day(8) excludes last 5 trading days
-        # whose targets use prices AFTER train_end. NEVER remove this.
-        combined_train = master_df[
-            (master_df.date .>= step.train_start) .&
-            (master_df.date .<= step.train_end - Day(8)) .&
-            (master_df.ticker .∈ Ref(active_set)), :]
+        # Each label must have finished before the model is trained.
+        combined_train = training_rows(master_df, step, active_set)
 
         combined_test = master_df[
             (master_df.date .== step.test_start) .&
             (master_df.ticker .∈ Ref(active_set)), :]
 
-        if i == 1
+        if verbose && i == 1
             println("Step 1 train rows: $(nrow(combined_train)), test rows: $(nrow(combined_test))")
             println("Step 1 active_set size: $(length(active_set))")
             println("Step 1 master_df rows: $(nrow(master_df))")
@@ -248,16 +345,24 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
         end
 
         try
-            _t_total = @elapsed (pred_rf, pred_lr, pred_xgb, importances, _mach_rf, mach_lr, mach_xgb) =
-                Model.train_and_predict(combined_train, combined_test, feature_cols)
-            println("[BENCHMARK] train_and_predict total: $(round(_t_total; digits=3))s")
+            # Coverage is checked before expensive fitting and never used to
+            # replace a missing candidate with another stock.
+            all(isfinite, combined_test.target) || error("Missing forward outcome in signal universe at $(step.test_start)")
+            if prediction_mode == :momentum
+                pred_rf = combined_test.rank_ret_20
+                pred_lr, pred_xgb = pred_rf, pred_rf
+                mach_lr, mach_xgb = nothing, nothing
+                importances = Dict{String,Float64}()
+                _t_total = 0.0
+            else
+                _t_total = @elapsed (pred_rf, pred_lr, pred_xgb, importances, _mach_rf, mach_lr, mach_xgb) =
+                    Model.train_and_predict(combined_train, combined_test, feature_cols)
+            end
+            @debug "Training and prediction seconds" elapsed=_t_total
 
             # Fall back to RF-only if XGB fails
-            ensemble_pred = if mach_xgb === nothing
-                pred_rf
-            else
-                0.5 .* pred_rf .+ 0.5 .* pred_xgb
-            end
+            ensemble_pred = ensemble_predictions(pred_rf, mach_xgb === nothing ? nothing : pred_xgb,
+                                                 ensemble_rf_weight)
 
             feature_importances_history[i] = importances
 
@@ -267,11 +372,15 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
                 ticker      = combined_test.ticker,
                 avg_pred    = ensemble_pred,
                 linear_pred = linear_pred,
-                avg_actual  = combined_test.target
+                avg_actual  = combined_test.target,
+                idio_vol_20 = combined_test.raw_idio_vol_20
             )
 
-            dropmissing!(period_scores, [:avg_pred, :avg_actual, :linear_pred])
-            filter!(row -> !isnan(row.avg_pred) && !isnan(row.avg_actual) && !isnan(row.linear_pred), period_scores)
+            all(isfinite, period_scores.avg_pred) || error("Invalid ensemble prediction")
+            all(isfinite, period_scores.linear_pred) || error("Invalid linear prediction")
+            # Refuse incomplete outcome coverage instead of dropping candidates.
+            # No defensible delisting payoff can be inferred from a missing bar.
+            all(isfinite, period_scores.avg_actual) || error("Missing forward outcome in signal universe at $(step.test_start); supply verified prices/delisting payouts")
 
             if nrow(period_scores) == 0
                 results[i] = nothing
@@ -315,7 +424,7 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
 
             pred_spread = maximum(period_scores.avg_pred) - minimum(period_scores.avg_pred)
 
-            if i <= 10
+            if verbose && i <= 10
                 open(joinpath(pwd(), "debug.txt"), "a") do f
                     println(f, "=== Step $i ===")
                     println(f, "  period_scores rows: $(nrow(period_scores))")
@@ -323,12 +432,12 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
                 end
             end
 
-            # LONG portfolio: pick top TOP_N_STOCKS, sector-capped (mirrors short basket).
+            # LONG portfolio: pick top `top_n`, sector-capped (mirrors short basket).
             # Preserves current sort order; caps each sector at 2 (3 for Unknown) with a fallback fill.
             long_indices        = Int[]
             long_sector_counts  = Dict{String, Int}()
             for (idx, row) in enumerate(eachrow(period_scores))
-                length(long_indices) >= TOP_N_STOCKS && break
+                length(long_indices) >= top_n && break
                 sector = get(SECTOR_MAP, row.ticker, "Unknown")
                 count  = get(long_sector_counts, sector, 0)
                 sector_limit = sector == "Unknown" ? 3 : 2
@@ -337,22 +446,83 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
                     long_sector_counts[sector] = count + 1
                 end
             end
-            # Fallback: fill remaining slots if sector caps prevented reaching TOP_N_STOCKS
-            if length(long_indices) < TOP_N_STOCKS
-                existing = Set(period_scores.ticker[long_indices])
-                for (idx, row) in enumerate(eachrow(period_scores))
-                    row.ticker in existing && continue
-                    push!(long_indices, idx)
-                    push!(existing, row.ticker)
-                    length(long_indices) >= TOP_N_STOCKS && break
-                end
-            end
             long_candidates = period_scores[long_indices, :]
-            actual_long    = mean(skipmissing(long_candidates.avg_actual))
-            predicted_long = mean(long_candidates.avg_pred)
+
+            # Portfolio weighting: parameterized method
+            # Methods: equal, shifted, shifted_inv_vol, rank, rank_inv_vol
+            preds = [row.avg_pred for row in eachrow(long_candidates)]
+            vols = [row.idio_vol_20 for row in eachrow(long_candidates)]
+            n_stocks = length(preds)
+
+            if weighting_method == "equal"
+                # Experiment A: Equal weight
+                raw_weights = fill(1.0, n_stocks)
+
+            elseif weighting_method == "shifted"
+                # Experiment B: Shifted prediction weighting
+                min_pred = minimum(preds)
+                shifted_scores = preds .- min_pred
+                raw_weights = shifted_scores
+
+            elseif weighting_method == "shifted_inv_vol"
+                # Experiments C & D: Shifted prediction + partial inv-vol
+                min_pred = minimum(preds)
+                shifted_scores = preds .- min_pred
+                inv_vol_adj = [isfinite(v) && v > 1e-8 ? (1.0/v)^inv_vol_exponent : (1.0/0.01)^inv_vol_exponent for v in vols]
+                raw_weights = shifted_scores .* inv_vol_adj
+
+            elseif weighting_method == "rank"
+                # Experiment E: Rank-based weighting
+                ranks = sortperm(sortperm(preds))  # double sortperm gives ranks
+                percentiles = (ranks .- 0.5) ./ n_stocks
+                raw_weights = percentiles
+
+            elseif weighting_method == "rank_inv_vol"
+                # Experiment F: Rank + partial inv-vol
+                ranks = sortperm(sortperm(preds))
+                percentiles = (ranks .- 0.5) ./ n_stocks
+                inv_vol_adj = [isfinite(v) && v > 1e-8 ? (1.0/v)^inv_vol_exponent : (1.0/0.01)^inv_vol_exponent for v in vols]
+                raw_weights = percentiles .* inv_vol_adj
+
+            else
+                # Fallback to equal weight
+                raw_weights = fill(1.0, n_stocks)
+            end
+
+            # Normalize weights
+            total_raw = sum(raw_weights)
+            inv_vol_weights = total_raw > 0 ? raw_weights ./ total_raw : fill(1.0 / n_stocks, n_stocks)
+
+            # Apply position cap if specified
+            if max_position_cap > 0.0
+                # Iterative capping: cap positions and redistribute excess
+                for _ in 1:10  # max 10 iterations to converge
+                    excess = sum(max(0, w - max_position_cap) for w in inv_vol_weights)
+                    if excess < 1e-6
+                        break
+                    end
+                    # Cap positions
+                    inv_vol_weights = [min(w, max_position_cap) for w in inv_vol_weights]
+                    # Redistribute excess proportionally to uncapped positions
+                    uncapped_mask = inv_vol_weights .< max_position_cap
+                    if sum(uncapped_mask) > 0
+                        redistribution = excess / sum(uncapped_mask)
+                        inv_vol_weights = [w + (uncapped_mask[i] ? redistribution : 0.0) for (i, w) in enumerate(inv_vol_weights)]
+                    end
+                end
+                # Infeasible caps retain the remainder as zero-yield cash.
+                inv_vol_weights = min.(inv_vol_weights, max_position_cap)
+            end
+
+            # Weighted portfolio return
+            actual_long = sum(inv_vol_weights .* skipmissing(long_candidates.avg_actual))
+            predicted_long = sum(inv_vol_weights .* long_candidates.avg_pred)
+
+            # Keep equal-weight for comparison
+            actual_long_equal_weight = mean(skipmissing(long_candidates.avg_actual))
 
             # SHORT basket metrics remain available for analysis.
-            top_n_high_pred = min(TOP_N_STOCKS, nrow(period_scores))
+            top_n_high_pred = min(top_n, nrow(period_scores))
             high_pred_candidates = copy(period_scores[1:top_n_high_pred, :])
             actual_high_pred = mean(skipmissing(high_pred_candidates.avg_actual))
 
@@ -360,6 +530,9 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
             short_tickers = String[]
             short_indices = Int[]
             sector_counts = Dict{String, Int}()
+
+            # Re-sort ascending for short selection (BUG FIX): picks bottom predictions, not top
+            sort!(period_scores, :avg_pred, rev = false)
 
             for (idx, row) in enumerate(eachrow(period_scores))
                 length(short_indices) >= BOTTOM_N_STOCKS && break
@@ -399,8 +572,10 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
 
             # Linear baseline: long portfolio
             sort!(period_scores, :linear_pred, rev = true)
-            linear_n = min(TOP_N_STOCKS, nrow(period_scores))
+            linear_n = min(top_n, nrow(period_scores))
             actual_equal_weight_long = mean(skipmissing(period_scores[1:linear_n, :].avg_actual))
+            linear_tickers = collect(period_scores[1:linear_n, :ticker])
+            linear_weights = fill(1.0 / linear_n, linear_n)
 
             # Linear baseline: short portfolio (sector-filtered)
             sort!(period_scores, :linear_pred, rev = false)
@@ -440,16 +615,32 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
             end
             actual_equal_weight_short = isempty(linear_short_returns) ? 0.0 : mean(linear_short_returns)
 
+            # Save holdings against the final table order by identity, not stale indices.
+            long_indices = [findfirst(==(t), period_scores.ticker) for t in long_candidates.ticker]
+            short_indices = [findfirst(==(t), period_scores.ticker) for t in short_candidates.ticker]
             chosen_alpha = actual_long
 
             # SPY return computed unconditionally (used for observability export;
             # also consumed by the short overlay block below when enabled).
-            spy_date_start = spy_data[spy_data.date .== step.test_start, :close]
-            spy_date_end   = spy_data[spy_data.date .== step.test_end, :close]
-            spy_ret = if isempty(spy_date_start) || isempty(spy_date_end)
-                0.0
+            # Same execution timing as the strategy:
+            #   entry  = open  of  test_start + 1 trading day
+            #   exit   = close of  test_start + FORECAST_HORIZON trading days
+            #   spy_ret = close[exit] / open[entry] - 1
+            spy_exec_idx = searchsortedfirst(spy_data.date, step.test_start)
+            if spy_exec_idx <= nrow(spy_data) && spy_data.date[spy_exec_idx] == step.test_start
+                spy_exec_idx += 1  # next trading day = entry
+                spy_exit_idx = spy_exec_idx + Features.FORECAST_HORIZON - 1
+                if spy_exec_idx <= nrow(spy_data) && spy_exit_idx <= nrow(spy_data)
+                    entry_px = spy_data.open[spy_exec_idx]
+                    exit_px  = spy_data.close[spy_exit_idx]
+                    spy_ret = (!ismissing(entry_px) && !ismissing(exit_px) &&
+                               isfinite(entry_px) && isfinite(exit_px) && entry_px > 0.0) ?
+                        exit_px / entry_px - 1.0 : NaN
+                else
+                    spy_ret = NaN
+                end
             else
-                spy_date_end[1] / spy_date_start[1] - 1.0
+                spy_ret = NaN
             end
 
             if ENABLE_SHORT_OVERLAY
@@ -461,7 +652,7 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
                     spy_count += 1
                 end
 
-                if i <= 10
+                if verbose && i <= 10
                     println("Step $i short_returns: $short_returns")
                     println("Step $i actual_alpha_short: $(round(actual_alpha_short * 100, digits = 3))%")
                     println("Step $i pred_spread: $(round(pred_spread, digits = 5))")
@@ -469,11 +660,17 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
                     flush(stdout)
                 end
             else
-                if i <= 10
+                if verbose && i <= 10
                     println("Step $i short_returns: $short_returns")
                     println("Step $i actual_alpha_short: $(round(actual_alpha_short * 100, digits = 3))%")
                     println("Step $i pred_spread: $(round(pred_spread, digits = 5))")
                     println("Step $i decision: base long-only (short overlay disabled)")
+                    println("Step $i LONG  tickers: $(long_candidates.ticker)")
+                    println("Step $i LONG  preds:   $(round.(long_candidates.avg_pred, digits=5))")
+                    println("Step $i SHORT tickers: $(short_candidates.ticker)")
+                    println("Step $i SHORT preds:   $(round.(short_candidates.avg_pred, digits=5))")
+                    overlap_tickers = [t for t in short_candidates.ticker if t in long_candidates.ticker]
+                    println("Step $i OVERLAP: $(isempty(overlap_tickers) ? "NONE" : overlap_tickers)")
                     flush(stdout)
                 end
             end
@@ -485,13 +682,35 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
                 chosen_alpha = 0.0
             end
 
+            long_tickers = collect(long_candidates.ticker)
+            # Each window liquidates at its exit close and holds cash until
+            # next entry. Charge both traded legs, even for repeated names.
+            long_turnover = sum(inv_vol_weights) + sum(inv_vol_weights .* (1 .+ long_candidates.avg_actual))
+            linear_turnover = 1.0 + actual_equal_weight_long + 1.0
+            net_alpha_long = actual_long - cost_rate * long_turnover
+            net_alpha_linear = actual_equal_weight_long - cost_rate * linear_turnover
+            if !ENABLE_SHORT_OVERLAY
+                chosen_alpha = net_alpha_long
+            end
+
             results[i] = (
+                methodology             = "corrected-v2",
                 date                    = step.test_start,
+                train_start             = step.train_start,
+                train_end               = step.train_end,
+                test_start              = step.test_start,
+                test_end                = step.test_end,
                 tickers_long            = long_candidates.ticker,
                 tickers_high_pred       = high_pred_candidates.ticker,
                 tickers_short           = short_tickers,
                 predicted_alpha         = predicted_long,
                 actual_alpha_long       = actual_long,
+                net_alpha_long          = net_alpha_long,
+                net_alpha_linear        = net_alpha_linear,
+                long_turnover           = long_turnover,
+                linear_turnover         = linear_turnover,
+                long_cost              = cost_rate * long_turnover,
+                linear_cost            = cost_rate * linear_turnover,
                 actual_alpha_high_pred  = actual_high_pred,
                 actual_alpha_short      = actual_alpha_short,
                 chosen_alpha            = chosen_alpha,
@@ -505,14 +724,24 @@ function run_walk_forward(all_stock_data, spy_data; max_steps=nothing)
                 period_scores_copy      = copy(period_scores),
                 long_indices_copy       = copy(long_indices),
                 short_indices_copy      = copy(short_indices),
+                inv_vol_weights         = inv_vol_weights,
+                actual_long_equal_weight_long = actual_long_equal_weight,
                 ic                      = ic,
                 rank_ic                 = rank_ic,
                 spy_ret                 = spy_ret,
+                # Validation fields (added for short-book fix verification)
+                long_preds_copy         = collect(long_candidates.avg_pred),
+                short_preds_copy        = collect(short_candidates.avg_pred),
+                n_universe              = nrow(period_scores),
             )
+            previous_long_tickers = long_tickers
+            previous_long_weights = collect(inv_vol_weights)
+            previous_linear_tickers = linear_tickers
+            previous_linear_weights = linear_weights
 
         catch e
             println("\nError at step $i: $e")
-            results[i] = nothing
+            rethrow()
         end
 
         if !is_debug

@@ -46,39 +46,39 @@ function extract_alphas(results)
     return dates, alphas_false, alphas_true, alphas_short, alphas_chosen, regimes
 end
 
-function export_results(results::Vector{Any}, feature_importances::Vector{Any}, performance)
+function export_results(results::Vector{Any}, feature_importances::Vector{Any}, performance;
+                        output_dir=joinpath(pwd(), "results", "corrected"))
 
     alphas_data = extract_alphas(results)
-    if alphas_data === nothing
+    if alphas_data[1] === nothing
         @warn "No valid results to export"
         return
     end
 
     dates, alphas_false, alphas_true, alphas_short, alphas_chosen, regimes = alphas_data
 
-    output_dir = joinpath(pwd(), "octave")
     mkpath(output_dir)
 
-    oef_step_rate = (1.09)^(5.0 / 252.0) - 1.0
+    valid_results = [r for r in results if r !== nothing && !ismissing(r)]
     ec_false = vcat(1.0, cumprod(1.0 .+ alphas_false))
     ec_true  = vcat(1.0, cumprod(1.0 .+ alphas_true))
     ec_chosen = vcat(1.0, cumprod(1.0 .+ alphas_chosen))
-    oef_cum  = vcat(1.0, cumprod(fill(1.0 + oef_step_rate, length(alphas_false))))
+    spy_cum = vcat(1.0, cumprod(1 .+ [r.spy_ret for r in valid_results]))
 
     n = length(ec_false)
 
-    CSV.write(joinpath("octave", "equity_curve.csv"), DataFrame(
+    CSV.write(joinpath(output_dir, "equity_curve.csv"), DataFrame(
         step_index = 0:(n - 1),
         strategy = ec_chosen,
-        oef_benchmark = oef_cum
+        spy_benchmark = spy_cum
     ))
 
-    CSV.write(joinpath("octave", "regime_signal.csv"), DataFrame(
+    CSV.write(joinpath(output_dir, "regime_signal.csv"), DataFrame(
         step = 1:length(regimes),
         regime = regimes
     ))
 
-    CSV.write(joinpath("octave", "monthly_alpha.csv"), DataFrame(
+    CSV.write(joinpath(output_dir, "monthly_alpha.csv"), DataFrame(
         month_index = 1:length(alphas_false),
         alpha_false = alphas_false,
         alpha_true = alphas_true,
@@ -102,7 +102,7 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
     dd_true = calc_drawdown(ec_true)
     dd_chosen = calc_drawdown(ec_chosen)
 
-    CSV.write(joinpath("octave", "drawdown.csv"), DataFrame(
+    CSV.write(joinpath(output_dir, "drawdown.csv"), DataFrame(
         step_index = 0:(length(dd_false) - 1),
         dd_false = dd_false,
         dd_true = dd_true,
@@ -123,7 +123,7 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
     wr_true = rolling_winrate(alphas_true)
     wr_chosen = rolling_winrate(alphas_chosen)
 
-    CSV.write(joinpath("octave", "rolling_winrate.csv"), DataFrame(
+    CSV.write(joinpath(output_dir, "rolling_winrate.csv"), DataFrame(
         step_index = 0:(length(wr_false) - 1),
         winrate_false = wr_false,
         winrate_true = wr_true,
@@ -152,7 +152,7 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
             end
             push!(rows, row)
         end
-        CSV.write(joinpath("octave", "feature_importance.csv"), DataFrame(rows))
+        CSV.write(joinpath(output_dir, "feature_importance.csv"), DataFrame(rows))
     end
 
     # Observability: filter valid results once for the per-step exports below.
@@ -165,11 +165,13 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
             continue
         end
         # Long holdings
+        n_long = length(r.long_indices_copy)
         for (rank, idx) in enumerate(r.long_indices_copy)
             row = r.period_scores_copy[idx, :]
             sector = get(Backtest.SECTOR_MAP, row.ticker, "Unknown")
-            weight = 1.0 / length(r.long_indices_copy)
-            contribution = weight * row.avg_actual
+            equal_weight = 1.0 / n_long
+            inv_vol_w = hasproperty(r, :inv_vol_weights) && rank <= length(r.inv_vol_weights) ? r.inv_vol_weights[rank] : equal_weight
+            contribution = inv_vol_w * row.avg_actual
             push!(holdings_rows, (
                 step_index = i - 1,
                 date = r.date,
@@ -177,18 +179,22 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
                 rank = rank,
                 predicted_score = row.avg_pred,
                 sector = sector,
-                weight = weight,
+                equal_weight = equal_weight,
+                inv_vol_weight = inv_vol_w,
+                weight = inv_vol_w,
                 side = "long",
                 actual_return = row.avg_actual,
                 contribution = contribution
             ))
         end
         # Short holdings
+        n_short = length(r.short_indices_copy)
         for (rank, idx) in enumerate(r.short_indices_copy)
             row = r.period_scores_copy[idx, :]
             sector = get(Backtest.SECTOR_MAP, row.ticker, "Unknown")
-            weight = -1.0 / length(r.short_indices_copy)
-            contribution = weight * row.avg_actual
+            short_equal_w = -1.0 / n_short
+            short_inv_vol_w = short_equal_w
+            contribution = short_inv_vol_w * row.avg_actual
             push!(holdings_rows, (
                 step_index = i - 1,
                 date = r.date,
@@ -196,7 +202,9 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
                 rank = rank,
                 predicted_score = row.avg_pred,
                 sector = sector,
-                weight = weight,
+                equal_weight = short_equal_w,
+                inv_vol_weight = short_inv_vol_w,
+                weight = short_inv_vol_w,
                 side = "short",
                 actual_return = row.avg_actual,
                 contribution = contribution
@@ -205,6 +213,29 @@ function export_results(results::Vector{Any}, feature_importances::Vector{Any}, 
     end
     holdings_df = DataFrame(holdings_rows)
     CSV.write(joinpath(output_dir, "holdings.csv"), holdings_df)
+
+    # Export weight diagnostics per rebalance
+    weight_diag_rows = []
+    for (i, r) in enumerate(valid_results)
+        if r === nothing
+            continue
+        end
+        n_long = length(r.long_indices_copy)
+        inv_vols = hasproperty(r, :inv_vol_weights) ? r.inv_vol_weights : fill(1.0/n_long, n_long)
+        hhi = sum(inv_vols .^ 2)
+        push!(weight_diag_rows, (
+            step_index = i - 1,
+            date = r.date,
+            n_stocks = n_long,
+            max_weight = maximum(inv_vols),
+            min_weight = minimum(inv_vols),
+            hhi = hhi,
+            equal_weight = 1.0 / n_long,
+            concentration_ratio = maximum(inv_vols) / (1.0 / n_long)
+        ))
+    end
+    weight_diag_df = DataFrame(weight_diag_rows)
+    CSV.write(joinpath(output_dir, "weight_diagnostics.csv"), weight_diag_df)
 
     # Export model health metrics per step (drawdown investigation).
     health_rows = []

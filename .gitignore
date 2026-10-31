@@ -1,7 +1,12 @@
 # Data and results
 data/
-octave/*.csv
-octave/*.dat
+sp500_ticker_start_end.csv
+results/
+octave/*
+!octave/plot_all.m
+!octave/turnover_audit.py
+!octave/momentum_baseline_steps.csv
+!octave/momentum_baseline_summary.csv
 
 # Generated outputs
 graphify-out/
@@ -9,6 +14,15 @@ __pycache__/
 debug.txt
 token-usage-output.txt
 benchmark_nthread*.txt
+EXPERIMENT_LOG.md
+STUDY_STATUS.md
+*.bak
+*.study_snapshot*
+fix_script.py
+alpha_concentration_analysis.py
+audit_weights.py
+short_book_forensics.py
+run_portfolio_study.py
 
 # Julia
 .julia/
@@ -20,3 +34,23 @@ Thumbs.db
 
 # Handoff notes
 HANDOFF.md
+
+# Local credentials and machine configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.venv/
+venv/
+.local-tools/
+recovered-data/
+.vscode/
+
+# Exploratory orchestration retained locally, outside the supported archive
+run_matrix.py
+run_matrix_analysis.py
+run_remaining_experiments.py
+run_tail_experiments.py
+
+.tmp/

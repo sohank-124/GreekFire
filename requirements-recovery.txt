@@ -1,0 +1,3 @@
+# Optional upstream scraper dependencies; ordinary project checks stay offline.
+pandas>=2.2,<3
+requests>=2.32,<3

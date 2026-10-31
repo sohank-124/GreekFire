@@ -20,35 +20,35 @@ function _standardize_price_df(df::DataFrame)
 
     out = DataFrame(
         date = Date.(df.date),
-        close = Float64.(coalesce.(df[!, close_sym], missing))
+        close = Float64.(coalesce.(df[!, close_sym], NaN))
     )
 
     if hasproperty(df, :open)
-        out.open = Float64.(coalesce.(df.open, missing))
+        out.open = Float64.(coalesce.(df.open, NaN))
     else
-        out.open = copy(out.close)
+        out.open = fill(NaN, nrow(out))
     end
 
     if hasproperty(df, :high)
-        out.high = Float64.(coalesce.(df.high, missing))
+        out.high = Float64.(coalesce.(df.high, NaN))
     else
         out.high = copy(out.close)
     end
 
     if hasproperty(df, :low)
-        out.low = Float64.(coalesce.(df.low, missing))
+        out.low = Float64.(coalesce.(df.low, NaN))
     else
         out.low = copy(out.close)
     end
 
     if hasproperty(df, :volume)
-        out.volume = Float64.(coalesce.(df.volume, missing))
+        out.volume = Float64.(coalesce.(df.volume, NaN))
     else
         out.volume = fill(0.0, nrow(out))
     end
 
     sort!(out, :date)
-    unique!(out, :date)
+    allunique(out.date) || error("Duplicate price dates require upstream resolution")
     filter!(row -> isfinite(row.close), out)
     return out
 end
@@ -57,14 +57,13 @@ function _align_on_common_dates(stock_df::DataFrame, spy_df::DataFrame)
     stock = _standardize_price_df(stock_df)
     spy   = _standardize_price_df(spy_df)
 
-    common = intersect(stock.date, spy.date)
-    sort!(common)
-
-    stock = stock[in.(stock.date, Ref(common)), :]
-    spy   = spy[in.(spy.date, Ref(common)), :]
-
-    sort!(stock, :date)
-    sort!(spy, :date)
+    # Use the benchmark calendar, preserving missing stock bars as NaN.
+    # A suspension must not stretch a five-session target into a longer trade.
+    stock = leftjoin(select(spy, :date), stock; on=:date)
+    sort!(stock, :date) # joins need not preserve left input order
+    for col in (:close, :open, :high, :low, :volume)
+        stock[!, col] = Float64.(coalesce.(stock[!, col], NaN))
+    end
 
     return stock, spy
 end
@@ -81,7 +80,7 @@ function _rolling_std(x::Vector{Float64}, i::Int, window::Int)
 end
 
 function _pct_change(curr::Float64, prev::Float64)
-    if !isfinite(curr) || !isfinite(prev) || prev == 0.0
+    if !isfinite(curr) || !isfinite(prev) || prev <= 0.0 || curr < 0.0
         return NaN
     end
     return curr / prev - 1.0
@@ -91,11 +90,15 @@ function calculate_features(stock_df::DataFrame, spy_df::DataFrame; forecast_hor
     stock, spy = _align_on_common_dates(stock_df, spy_df)
 
     n = nrow(stock)
-    if n < LOOKBACK_60 + forecast_horizon + 1
+    forecast_horizon > 0 || throw(ArgumentError("forecast_horizon must be positive"))
+    if n < LOOKBACK_60 + 1
         return DataFrame()
     end
 
     close = Float64.(stock.close)
+    # Open price carries the execution-time reference for the next-trading-day entry.
+    # Replace any remaining missings with NaN so downstream _pct_change returns NaN.
+    open_price = Float64.(coalesce.(stock.open, NaN))
     spy_close = Float64.(spy.close)
     dates = stock.date
 
@@ -119,12 +122,13 @@ function calculate_features(stock_df::DataFrame, spy_df::DataFrame; forecast_hor
         residual_momentum_20 = Float64[],
         volume_20 = Float64[],
         dollar_volume_ratio = Float64[],
-        target = Float64[]
+        target = Float64[],
+        target_end_date = Date[]
     )
 
     start_i = LOOKBACK_60 + 1
 
-    for i in start_i:(n - forecast_horizon)
+    for i in start_i:n
         c = close[i]
         c5  = close[max(1, i - LOOKBACK_5)]
         c20 = close[max(1, i - LOOKBACK_20)]
@@ -142,7 +146,8 @@ function calculate_features(stock_df::DataFrame, spy_df::DataFrame; forecast_hor
         end
 
         vol_10 = _rolling_std(past_rets, length(past_rets), min(10, length(past_rets)))
-        vol_60_window = _rolling_std(past_rets, length(past_rets), min(60, length(past_rets)))
+        rets_60 = [_pct_change(close[j], close[j-1]) for j in (i-59):i]
+        vol_60_window = std(rets_60)
         vol_ratio_val = (isfinite(vol_10) && isfinite(vol_60_window) && vol_60_window > 1e-10) ? vol_10 / vol_60_window : NaN
 
         vol_20_stock = _rolling_std(past_rets, length(past_rets), min(20, length(past_rets)))
@@ -205,7 +210,7 @@ function calculate_features(stock_df::DataFrame, spy_df::DataFrame; forecast_hor
                     alpha = y_bar - beta_20_val * x_bar
                     residuals = [y[j] - (alpha + beta_20_val * x[j]) for j in 1:n_valid]
                     idio_vol_20_val = std(residuals)
-                    residual_momentum_20_val = sum(residuals)
+                    residual_momentum_20_val = sum(y .- beta_20_val .* x)
                 end
             end
         end
@@ -218,8 +223,10 @@ function calculate_features(stock_df::DataFrame, spy_df::DataFrame; forecast_hor
             dollar_volume_ratio_val = (isfinite(dv_5) && isfinite(dv_20) && dv_20 > 0) ? dv_5 / dv_20 : NaN
         end
 
-        future_price = close[i + forecast_horizon]
-        target = _pct_change(future_price, c)
+        matured = i + forecast_horizon <= n
+        target = matured ? _pct_change(close[i + forecast_horizon], open_price[i + 1]) : NaN
+        # Future outcomes are metadata. They never determine signal eligibility.
+        target_end = matured ? dates[i + forecast_horizon] : Date(9999, 12, 31)
 
         row = (
             date = dates[i],
@@ -238,10 +245,13 @@ function calculate_features(stock_df::DataFrame, spy_df::DataFrame; forecast_hor
             residual_momentum_20 = residual_momentum_20_val,
             volume_20 = vol_20_mean,
             dollar_volume_ratio = dollar_volume_ratio_val,
-            target = target
+            target = target,
+            target_end_date = target_end
         )
 
-        if all(isfinite, collect(values(row)))
+        predictor_values = (getproperty(row, key) for key in keys(row)
+                            if key ∉ (:target, :target_end_date))
+        if all(value -> !(value isa Real) || isfinite(value), predictor_values)
             push!(rows, row)
         end
     end

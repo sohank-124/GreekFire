@@ -2,7 +2,7 @@ clear;
 clc;
 close all;
 
-cd(fileparts(mfilename('fullpath')));
+cd(fullfile(fileparts(mfilename('fullpath')), '..', 'results', 'corrected'));
 
 fprintf('Loading GreekFire results...\n');
 
@@ -155,7 +155,7 @@ bear_col = [1.0 0.5 0.0];
 fallback_col = [0.0 0.7 0.3];
 cash_col = [0.5 0.5 0.5];
 
-% OEF benchmark
+% SPY benchmark
 semilogy( ...
     equity(:,1), ...
     equity(:,3), ...
@@ -233,7 +233,7 @@ h5 = plot(NaN, NaN, ...
 
 legend( ...
     [h1 h2 h3 h4 h5], ...
-    {'Bull','Bear (Short)','Fallback','Cash','OEF'}, ...
+    {'Bull','Bear (Short)','Fallback','Cash','SPY'}, ...
     'Location','northwest');
 
 title('Cumulative Returns (Regime Colored)');

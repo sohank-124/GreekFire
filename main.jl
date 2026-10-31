@@ -4,15 +4,20 @@ include("model.jl")
 include("backtest.jl")
 include("metrics.jl")
 include("visualizer.jl")
-include("regime.jl")
+# Archived regime.jl/hmm.jl are not loaded by the supported engine.
+include("validation.jl")
 
-using DataFrames, Dates, Statistics
+using DataFrames, Dates, Statistics, Random
 
-DEBUG_MODE = false
+const DEBUG_MODE = false
+
+# Note: `run_validation()` is defined by the include of validation.jl above.
+# It is dispatched through the ARGS[1] == "validate" branch at the bottom of main.jl.
 
 function main()
+    Random.seed!(42)
     println("Running on $(Threads.nthreads()) threads")
-    println("Starting GreekFire Walk-Forward Backtesting Engine with Regime Switching...")
+    println("Starting archived GreekFire walk-forward research engine (regime switching disabled)...")
 
     all_stock_data = DataLoader.load_all_data()
     # SPY benchmark is not in S&P 500 membership csv, fetch it separately
@@ -33,7 +38,7 @@ function main()
         for i in 1:length(results)
             r = results[i]
             if r !== nothing
-                results[i] = merge(r, (chosen_alpha = r.actual_alpha_long, regime_signal = :bull))
+                results[i] = merge(r, (chosen_alpha = r.net_alpha_long, regime_signal = :bull))
             end
         end
 
@@ -70,14 +75,14 @@ function main()
     println("\n--- Strategy Performance ---")
     for s in (:base, :linear, :chosen)
         p = all_perf[s]
-        label = s == :base ? "base (RF+XGB long)" : s == :linear ? "linear (equal-weight)" : "chosen (long-only)"
+        label = s == :base ? "base (RF+XGB long, net)" : s == :linear ? "linear (equal-weight, net)" : "chosen (long-only, net)"
         if p !== nothing
             println("$(label):")
             println("  CAGR: $(round(p.cagr * 100, digits=2))%")
             println("  Sharpe: $(round(p.sharpe, digits=2))")
             println("  Max DD: $(round(p.max_dd * 100, digits=2))%")
             println("  Win Rate: $(round(p.win_rate * 100, digits=2))%")
-            println("  Avg Excess: $(round(p.avg_excess * 100, digits=2))%")
+            println("  Mean Period Return: $(round(p.mean_return * 100, digits=2))%")
         else
             println("$(label): No valid results")
         end
@@ -117,10 +122,10 @@ function main()
     linear_perf = all_perf[:linear]
 
     Visualizer.export_results(results, importances, perf)
-    println("Results exported to /octave directory.")
+    println("Results exported to results/corrected/.")
 
     try
-        log_path = joinpath(pwd(), "EXPERIMENT_LOG.md")
+        log_path = joinpath(pwd(), "results", "corrected", "RUN_LOG.md")
 
         run_num = 1
         if isfile(log_path)
@@ -186,7 +191,7 @@ function main()
             "- Sharpe Ratio: $(round(perf.sharpe, digits=2))\n" *
             "- Max Drawdown: $(round(perf.max_dd * 100, digits=2))%\n" *
             "- Win Rate: $(round(perf.win_rate * 100, digits=2))%\n" *
-            "- Avg Excess Return: $(round(perf.avg_excess * 100, digits=2))%\n" *
+            "- Mean Period Return Return: $(round(perf.mean_return * 100, digits=2))%\n" *
             "- Mean IC: $ic_str\n" *
             "- Mean Rank IC: $rank_ic_str\n" *
             "- Decile Spread: $spread_str\n" *
@@ -204,6 +209,144 @@ function main()
     end
 end
 
+# ---------------------------------------------------------------------------
+# CLI argument parser (Phase 1 - experiment support)
+# ---------------------------------------------------------------------------
+# Parse --key=value pairs from ARGS[2:end] into a Dict{String,Any} suitable
+# for splatting into run_validation's keyword arguments.
+#
+# Supported keys:
+#   --top-n=<Int>              (alias: --top_n)
+#   --universe=<String>        ("all" | "tech" | "semis")
+#   --exclude-features=<a,b,c> (comma-separated, no spaces)
+#   --inv-vol-exp=<Float64>    (alias: --inv_vol_exp)
+#   --exclude-tickers=<a,b,c>  (alias: --exclude_tickers)
+#   --holdout-start=<YYYY-MM-DD>  (alias: --holdout_start)
+#   --train-window=<Symbol|Int>   (alias: --train_window; :fixed|:expanding|Int days)
+#   --max-steps=<Int>          (alias: --max_steps)
+#   --weighting-method=<equal|shifted|shifted_inv_vol|rank|rank_inv_vol>
+#   --transaction-cost-bps=<Float64>  --slippage-bps=<Float64>
+#   --rf-weight=<Float64>       RF share of RF/XGBoost blend, default 0.5
+#
+# Unrecognized args are ignored with a warning so future experiments can
+# safely add new keys without breaking older scripts.
+function parse_cli_args(args::Vector{String})
+    parsed = Dict{String,Any}()
+    aliases = Dict{String,String}(
+        "top-n"             => "top_n",
+        "top_n"             => "top_n",
+        "universe"          => "universe",
+        "exclude-features"  => "exclude_features",
+        "exclude_features"  => "exclude_features",
+        "inv-vol-exp"       => "inv_vol_exp",
+        "inv_vol_exp"       => "inv_vol_exp",
+        "exclude-tickers"   => "exclude_tickers",
+        "exclude_tickers"   => "exclude_tickers",
+        "holdout-start"     => "holdout_start",
+        "holdout_start"     => "holdout_start",
+        "train-window"      => "train_window",
+        "train_window"      => "train_window",
+        "max-steps"         => "max_steps",
+        "max_steps"         => "max_steps",
+        "weighting-method"  => "weighting_method",
+        "transaction-cost-bps" => "transaction_cost_bps",
+        "slippage-bps"      => "slippage_bps",
+        "rf-weight"         => "ensemble_rf_weight",
+        "prediction-mode"   => "prediction_mode",
+    )
+
+    for arg in args
+        if !startswith(arg, "--")
+            @warn "Ignoring non-flag CLI argument: $(repr(arg))"
+            continue
+        end
+        kv = split(arg, "="; limit=2)
+        length(kv) != 2 && begin
+            @warn "Ignoring malformed CLI argument (expected --key=value): $(repr(arg))"
+            continue
+        end
+        key = String(kv[1][3:end])  # strip leading "--"
+        val = String(kv[2])
+        haskey(aliases, key) || begin
+            @warn "Unknown CLI argument: --$(key) (ignored)"
+            continue
+        end
+        canonical = aliases[key]
+        # Don't overwrite an earlier value (first-write-wins keeps behavior
+        # deterministic if the same key is supplied twice).
+        haskey(parsed, canonical) && begin
+            @warn "Duplicate CLI argument --$(key); keeping first value"
+            continue
+        end
+
+        try
+            if canonical == "top_n"
+                parsed[canonical] = parse(Int, val)
+            elseif canonical == "prediction_mode"
+                val in ("ensemble", "momentum") || error("Unknown prediction mode")
+                parsed[canonical] = Symbol(val)
+            elseif canonical == "universe"
+                lowered = lowercase(strip(val))
+                lowered in ("all", "tech", "semis") || error("universe must be one of all/tech/semis, got $(repr(val))")
+                parsed[canonical] = lowered
+            elseif canonical == "exclude_features"
+                items = filter(!isempty, split(val, ","))
+                parsed[canonical] = Set{String}(String(s) for s in items)
+            elseif canonical == "inv_vol_exp"
+                parsed[canonical] = parse(Float64, val)
+            elseif canonical == "exclude_tickers"
+                items = filter(!isempty, split(val, ","))
+                parsed[canonical] = Set{String}(uppercase(String(s)) for s in items)
+            elseif canonical == "holdout_start"
+                parsed[canonical] = Date(val)  # ISO YYYY-MM-DD
+            elseif canonical == "train_window"
+                lowered = lowercase(strip(val))
+                if lowered in ("fixed", "expanding")
+                    parsed[canonical] = Symbol(lowered)
+                else
+                    parsed[canonical] = parse(Int, val)
+                end
+            elseif canonical == "max_steps"
+                parsed[canonical] = parse(Int, val)
+            elseif canonical == "weighting_method"
+                val in ("equal", "shifted", "shifted_inv_vol", "rank", "rank_inv_vol") || error("Unknown weighting method")
+                parsed[canonical] = val
+            elseif canonical in ("transaction_cost_bps", "slippage_bps", "ensemble_rf_weight")
+                parsed[canonical] = parse(Float64, val)
+            end
+        catch e
+            @warn "Failed to parse CLI argument --$(key)=$(repr(val)): $(sprint(showerror, e))"
+        end
+    end
+
+    return parsed
+end
+
 if isempty(ARGS)
     main()
+end
+
+# Previously explored historical validation harness.
+# Usage:
+#     julia --project=. main.jl validate
+#     julia --project=. main.jl validate --top-n=3 --universe=tech
+#     GREEKFIRE_MAX_STEPS=20 julia --project=. main.jl validate
+if !isempty(ARGS) && ARGS[1] == "validate"
+    if !@isdefined run_validation
+        # ensure the include actually defined the function
+        include("validation.jl")
+    end
+    Random.seed!(42)
+    cli_kwargs = parse_cli_args(ARGS[2:end])
+    if !isempty(cli_kwargs)
+        println("[main] CLI kwargs: $(cli_kwargs)")
+    end
+    # Julia kwarg splat requires a NamedTuple or iterable of Pair{Symbol,...},
+    # not a Dict. Convert Dict{String,Any} -> NamedTuple via Symbol keys.
+    if isempty(cli_kwargs)
+        run_validation()
+    else
+        kw_pairs = (Symbol(k) => v for (k, v) in cli_kwargs)
+        run_validation(; kw_pairs...)
+    end
 end

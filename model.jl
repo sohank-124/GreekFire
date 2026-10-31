@@ -2,6 +2,7 @@ module Model
 
 using MLJ, DecisionTree, MLJDecisionTreeInterface, MLJLinearModels, XGBoost, DataFrames, Statistics
 import MLJ: predict
+using Logging
 
 function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols::Vector{String})
     X_train = train_df[:, feature_cols]
@@ -13,7 +14,7 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         return nothing, nothing, nothing, nothing, nothing, nothing, nothing
     end
 
-    valid_train_mask = .!any(isnan, X_matrix, dims=2)[:] .& .!isnan.(y_train)
+    valid_train_mask = all(isfinite, X_matrix, dims=2)[:] .& isfinite.(y_train)
     X_train_clean = X_train[valid_train_mask, :]
     y_train_clean = y_train[valid_train_mask]
 
@@ -21,13 +22,14 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         return nothing, nothing, nothing, nothing, nothing, nothing, nothing
     end
 
-    n_subfeatures = max(3, floor(Int, sqrt(length(feature_cols))))
+    n_subfeatures = min(length(feature_cols), max(1, floor(Int, sqrt(length(feature_cols)))))
     
     # 1. Random Forest (Reduced trees and depth for speed)
     rf_model = MLJDecisionTreeInterface.RandomForestRegressor(
         n_trees=50,  
         n_subfeatures=n_subfeatures,
-        max_depth=5
+        max_depth=5,
+        rng=42
     )
     mach_rf = machine(rf_model, X_train_clean, y_train_clean)
     _t_rf = @elapsed MLJ.fit!(mach_rf, verbosity=0)
@@ -42,9 +44,10 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
     y_vector_clean = Vector{Float64}(y_train_clean)
     
     dtrain = XGBoost.DMatrix(X_matrix_clean, label=y_vector_clean)
-    _t_xgb = @elapsed mach_xgb = XGBoost.xgboost(dtrain,
+    _t_xgb = @elapsed mach_xgb = with_logger(ConsoleLogger(stderr, Logging.Warn)) do
+        XGBoost.xgboost(dtrain,
         num_round=150,
-        nthread=8,  # explicit: 8 threads
+        nthread=min(8, Threads.nthreads()),
         max_depth=3,
         eta=0.01,
         max_delta_step=1,
@@ -55,7 +58,9 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         colsample_bytree=1.0,
         objective="reg:squarederror",
         verbosity=0,
-    )
+        seed=42,
+        )
+    end
 
     pred_rf = nothing
     pred_lr = nothing
@@ -70,7 +75,7 @@ function train_and_predict(train_df::DataFrame, test_df::DataFrame, feature_cols
         importance_dict[String(item[1])] = Float64(item[2])
     end
 
-    println("[BENCHMARK] RF=$(round(_t_rf; digits=3))s LR=$(round(_t_lr; digits=3))s XGB=$(round(_t_xgb; digits=3))s")
+    @debug "Model fit seconds" rf=_t_rf linear=_t_lr xgboost=_t_xgb
     return pred_rf, pred_lr, pred_xgb, importance_dict, mach_rf, mach_lr, mach_xgb
 end
 
@@ -80,9 +85,9 @@ function predict_with_machines(mach_rf, mach_lr, mach_xgb, test_df::DataFrame, f
 
     for col in feature_cols
         col_data = X_train_clean[:, col]
-        valid_data = col_data[(!isnan).(col_data)]
+        valid_data = col_data[isfinite.(col_data)]
         m = isempty(valid_data) ? 0.0 : mean(valid_data)
-        nan_indices = findall(x -> ismissing(x) || isnan(x), X_test_filled[:, col])
+        nan_indices = findall(x -> ismissing(x) || !isfinite(x), X_test_filled[:, col])
         for idx in nan_indices
             X_test_filled[idx, col] = m
         end

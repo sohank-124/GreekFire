@@ -1,4 +1,6 @@
 # GreekFire Experiment Log
+
+> Historical exploratory results, unvalidated. Entries below are preserved. Corrected-v2 outputs belong in results/corrected/ and must not be compared as equivalent runs. Labels such as "excess" and "point-in-time" reflect the implementation at that time, not a current certification.
 This file tracks the results of walk-forward backtesting experiments.
 
 ## Run 1 — 2026-04-27
@@ -1905,4 +1907,1018 @@ DOUBLE COUNTING ERROR IN CAGR AND SHARPE RATIO CALCUALTIONS
 - Linear Baseline CAGR: 28.53%
 - Top 3 features: idio_vol_20 (0.2191), sma_60 (0.1405), rank_ret_20 (0.104)
 - Runtime: 32m 59s
+- Notes:
+
+## Run 78 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 52.93%
+- Sharpe Ratio: 0.57
+- Max Drawdown: 29.42%
+- Win Rate: 58.71%
+- Avg Excess Return: 1.2%
+- Mean IC: 0.026
+- Mean Rank IC: -0.0049
+- Decile Spread: 0.23%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2057), sma_60 (0.1309), momentum_curve (0.1233)
+- Runtime: 34m 14s
+- Notes:
+
+## Run 79 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 166.26%
+- Sharpe Ratio: 0.68
+- Max Drawdown: 96.41%
+- Win Rate: 55.56%
+- Avg Excess Return: 4.01%
+- Mean IC: 0.0279
+- Mean Rank IC: -0.0047
+- Decile Spread: 0.25%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2004), sma_60 (0.1288), rank_ret_20 (0.1113)
+- Runtime: 33m 21s
+- Notes:
+
+## Run 80 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 156.08%
+- Sharpe Ratio: 0.8
+- Max Drawdown: 94.78%
+- Win Rate: 54.5%
+- Avg Excess Return: 3.51%
+- Mean IC: 0.0289
+- Mean Rank IC: -0.0051
+- Decile Spread: 0.21%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2085), momentum_curve (0.136), sma_60 (0.1326)
+- Runtime: 36m 21s
+- Notes:
+
+## Run 81 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 89.57%
+- Sharpe Ratio: 0.69
+- Max Drawdown: 39.44%
+- Win Rate: 57.19%
+- Avg Excess Return: 1.84%
+- Mean IC: 0.0321
+- Mean Rank IC: -0.0042
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.1859), sma_60 (0.1365), momentum_curve (0.1346)
+- Runtime: 31m 20s
+- Notes:
+
+## Run 82 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 82.32%
+- Sharpe Ratio: 0.66
+- Max Drawdown: 50.68%
+- Win Rate: 56.49%
+- Avg Excess Return: 1.77%
+- Mean IC: 0.0269
+- Mean Rank IC: -0.0063
+- Decile Spread: 0.24%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2039), rank_ret_20 (0.126), sma_60 (0.1244)
+- Runtime: 35m 18s
+- Notes:
+
+## Run 83 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 84.89%
+- Sharpe Ratio: 0.67
+- Max Drawdown: 46.52%
+- Win Rate: 57.43%
+- Avg Excess Return: 1.8%
+- Mean IC: 0.03
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.23%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2248), sma_60 (0.142), momentum_curve (0.1347)
+- Runtime: 35m 4s
+- Notes:
+
+## Run 84 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 248.61%
+- Sharpe Ratio: 0.63
+- Max Drawdown: 94.23%
+- Win Rate: 52.87%
+- Avg Excess Return: 6.61%
+- Mean IC: 0.0318
+- Mean Rank IC: -0.0042
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.1993), sma_60 (0.1357), momentum_curve (0.1181)
+- Runtime: 252m 27s
+- Notes:
+
+## Run 85 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 129.82%
+- Sharpe Ratio: 0.6
+- Max Drawdown: 62.36%
+- Win Rate: 54.97%
+- Avg Excess Return: 3.0%
+- Mean IC: 0.0325
+- Mean Rank IC: -0.0055
+- Decile Spread: 0.23%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.228), sma_60 (0.1235), momentum_curve (0.1085)
+- Runtime: 30m 27s
+- Notes:
+
+## Run 86 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 119.22%
+- Sharpe Ratio: 0.64
+- Max Drawdown: 52.75%
+- Win Rate: 57.19%
+- Avg Excess Return: 2.51%
+- Mean IC: 0.0316
+- Mean Rank IC: -0.0062
+- Decile Spread: 0.21%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2068), sma_60 (0.1418), momentum_curve (0.1323)
+- Runtime: 29m 56s
+- Notes:
+
+## Run 87 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 213.52%
+- Sharpe Ratio: 0.54
+- Max Drawdown: 98.11%
+- Win Rate: 54.5%
+- Avg Excess Return: 6.54%
+- Mean IC: 0.0294
+- Mean Rank IC: -0.0057
+- Decile Spread: 0.23%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2182), sma_60 (0.1543), momentum_curve (0.1151)
+- Runtime: 28m 36s
+- Notes:
+
+## Run 88 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 126.38%
+- Sharpe Ratio: 0.59
+- Max Drawdown: 66.01%
+- Win Rate: 54.39%
+- Avg Excess Return: 3.04%
+- Mean IC: 0.0272
+- Mean Rank IC: -0.0056
+- Decile Spread: 0.21%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2118), momentum_curve (0.1238), sma_60 (0.1149)
+- Runtime: 30m 59s
+- Notes:
+
+## Run 89 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 109.44%
+- Sharpe Ratio: 0.62
+- Max Drawdown: 47.59%
+- Win Rate: 54.27%
+- Avg Excess Return: 2.44%
+- Mean IC: 0.0326
+- Mean Rank IC: -0.005
+- Decile Spread: 0.26%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2302), sma_60 (0.1331), rank_ret_20 (0.1209)
+- Runtime: 30m 57s
+- Notes:
+
+## Run 90 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 223.74%
+- Sharpe Ratio: 0.62
+- Max Drawdown: 96.25%
+- Win Rate: 55.56%
+- Avg Excess Return: 5.71%
+- Mean IC: 0.0312
+- Mean Rank IC: -0.0053
+- Decile Spread: 0.25%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2091), sma_60 (0.1284), rank_ret_20 (0.1035)
+- Runtime: 30m 30s
+- Notes:
+
+## Run 91 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 126.18%
+- Sharpe Ratio: 0.61
+- Max Drawdown: 69.67%
+- Win Rate: 53.33%
+- Avg Excess Return: 2.96%
+- Mean IC: 0.0302
+- Mean Rank IC: -0.0064
+- Decile Spread: 0.22%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2052), sma_60 (0.1419), rank_ret_20 (0.1123)
+- Runtime: 29m 27s
+- Notes:
+
+## Run 92 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 113.7%
+- Sharpe Ratio: 0.63
+- Max Drawdown: 44.72%
+- Win Rate: 56.73%
+- Avg Excess Return: 2.49%
+- Mean IC: 0.0304
+- Mean Rank IC: -0.006
+- Decile Spread: 0.25%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2121), sma_60 (0.1339), momentum_curve (0.1207)
+- Runtime: 29m 16s
+- Notes:
+
+## Run 93 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 124.84%
+- Sharpe Ratio: 0.59
+- Max Drawdown: 48.35%
+- Win Rate: 55.32%
+- Avg Excess Return: 2.87%
+- Mean IC: 0.0303
+- Mean Rank IC: -0.0053
+- Decile Spread: 0.25%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2289), sma_60 (0.1216), momentum_curve (0.1111)
+- Runtime: 29m 13s
+- Notes:
+
+## Run 94 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 132.6%
+- Sharpe Ratio: 0.6
+- Max Drawdown: 60.28%
+- Win Rate: 55.56%
+- Avg Excess Return: 2.97%
+- Mean IC: 0.0306
+- Mean Rank IC: -0.0056
+- Decile Spread: 0.24%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2189), momentum_curve (0.1376), sma_60 (0.1217)
+- Runtime: 30m 8s
+- Notes:
+
+## Run 95 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 115.18%
+- Sharpe Ratio: 0.63
+- Max Drawdown: 49.81%
+- Win Rate: 55.67%
+- Avg Excess Return: 2.49%
+- Mean IC: 0.0305
+- Mean Rank IC: -0.0058
+- Decile Spread: 0.25%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2592), sma_60 (0.12), momentum_curve (0.1038)
+- Runtime: 30m 33s
+- Notes:
+
+## Run 96 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 126.84%
+- Sharpe Ratio: 0.6
+- Max Drawdown: 48.1%
+- Win Rate: 55.56%
+- Avg Excess Return: 2.87%
+- Mean IC: 0.0306
+- Mean Rank IC: -0.0061
+- Decile Spread: 0.24%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2797), sma_60 (0.1161), rank_ret_20 (0.0862)
+- Runtime: 32m 5s
+- Notes:
+
+## Run 97 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 101.0%
+- Sharpe Ratio: 0.58
+- Max Drawdown: 69.14%
+- Win Rate: 55.56%
+- Avg Excess Return: 2.43%
+- Mean IC: 0.0305
+- Mean Rank IC: -0.0058
+- Decile Spread: 0.23%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2205), sma_60 (0.1502), rank_ret_20 (0.1164)
+- Runtime: 37m 24s
+- Notes:
+
+## Run 98 — 2026-06-18
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 116.38%
+- Sharpe Ratio: 0.64
+- Max Drawdown: 46.67%
+- Win Rate: 56.96%
+- Avg Excess Return: 2.49%
+- Mean IC: 0.032
+- Mean Rank IC: -0.0051
+- Decile Spread: 0.25%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.1864), sma_60 (0.1516), momentum_curve (0.128)
+- Runtime: 37m 11s
+- Notes:
+
+## Run 99 — 2026-06-19
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 88.65%
+- Sharpe Ratio: 0.69
+- Max Drawdown: 34.96%
+- Win Rate: 58.01%
+- Avg Excess Return: 1.83%
+- Mean IC: 0.0306
+- Mean Rank IC: -0.0067
+- Decile Spread: 0.25%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2269), sma_60 (0.1316), rank_ret_20 (0.1125)
+- Runtime: 50m 25s
+- Notes:
+
+## Run 100 — 2026-06-19
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 84.89%
+- Sharpe Ratio: 0.67
+- Max Drawdown: 37.68%
+- Win Rate: 58.13%
+- Avg Excess Return: 1.79%
+- Mean IC: 0.033
+- Mean Rank IC: -0.0055
+- Decile Spread: 0.24%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2157), momentum_curve (0.1304), sma_60 (0.1205)
+- Runtime: 35m 52s
+- Notes:
+
+## Run 101 — 2026-06-19
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 76.13%
+- Sharpe Ratio: 0.63
+- Max Drawdown: 46.65%
+- Win Rate: 56.96%
+- Avg Excess Return: 1.69%
+- Mean IC: 0.0289
+- Mean Rank IC: -0.0058
+- Decile Spread: 0.23%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.1835), sma_60 (0.1487), momentum_curve (0.1215)
+- Runtime: 31m 49s
+- Notes:
+
+## Run 102 — 2026-06-20
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 85.08%
+- Sharpe Ratio: 0.67
+- Max Drawdown: 42.18%
+- Win Rate: 57.19%
+- Avg Excess Return: 1.79%
+- Mean IC: 0.0316
+- Mean Rank IC: -0.0046
+- Decile Spread: 0.28%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2429), sma_60 (0.1351), momentum_curve (0.1242)
+- Runtime: 29m 49s
+- Notes:
+
+## Run 103 — 2026-06-21
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 265.54%
+- Sharpe Ratio: 0.65
+- Max Drawdown: 91.35%
+- Win Rate: 53.33%
+- Avg Excess Return: 6.3%
+- Mean IC: 0.0341
+- Mean Rank IC: -0.0046
+- Decile Spread: 0.28%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2017), sma_60 (0.1522), momentum_curve (0.1178)
+- Runtime: 29m 56s
+- Notes:
+
+## Run 104 — 2026-06-21
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 235.07%
+- Sharpe Ratio: 0.67
+- Max Drawdown: 96.44%
+- Win Rate: 53.57%
+- Avg Excess Return: 5.75%
+- Mean IC: 0.0288
+- Mean Rank IC: -0.0057
+- Decile Spread: 0.23%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2178), sma_60 (0.1633), momentum_curve (0.1063)
+- Runtime: 29m 55s
+- Notes:
+
+## Run 105 — 2026-06-21
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 102.63%
+- Sharpe Ratio: 0.6
+- Max Drawdown: 64.21%
+- Win Rate: 55.32%
+- Avg Excess Return: 2.37%
+- Mean IC: 0.0295
+- Mean Rank IC: -0.0058
+- Decile Spread: 0.28%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2121), momentum_curve (0.1352), sma_60 (0.1127)
+- Runtime: 30m 3s
+- Notes:
+
+## Run 106 — 2026-06-21
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 119.48%
+- Sharpe Ratio: 0.58
+- Max Drawdown: 53.56%
+- Win Rate: 55.56%
+- Avg Excess Return: 2.79%
+- Mean IC: 0.0333
+- Mean Rank IC: -0.0048
+- Decile Spread: 0.31%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.1965), sma_60 (0.1399), momentum_curve (0.1073)
+- Runtime: 30m 2s
+- Notes:
+
+## Run 107 — 2026-06-21
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 83.98%
+- Sharpe Ratio: 0.66
+- Max Drawdown: 45.6%
+- Win Rate: 57.31%
+- Avg Excess Return: 1.78%
+- Mean IC: 0.0307
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2373), sma_60 (0.1486), momentum_curve (0.1221)
+- Runtime: 34m 42s
+- Notes:
+
+## Run 108 — 2026-06-21
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 83.98%
+- Sharpe Ratio: 0.66
+- Max Drawdown: 45.6%
+- Win Rate: 57.31%
+- Avg Excess Return: 1.78%
+- Mean IC: 0.0307
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2373), sma_60 (0.1486), momentum_curve (0.1221)
+- Runtime: 32m 23s
+- Notes:
+
+## Run 109 — 2026-06-21
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 83.98%
+- Sharpe Ratio: 0.66
+- Max Drawdown: 45.6%
+- Win Rate: 57.31%
+- Avg Excess Return: 1.78%
+- Mean IC: 0.0307
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2373), sma_60 (0.1486), momentum_curve (0.1221)
+- Runtime: 32m 58s
+- Notes:
+
+## Run 110 — 2026-06-22
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 209.01%
+- Sharpe Ratio: 0.65
+- Max Drawdown: 95.7%
+- Win Rate: 52.98%
+- Avg Excess Return: 5.23%
+- Mean IC: 0.0307
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2373), sma_60 (0.1486), momentum_curve (0.1221)
+- Runtime: 33m 52s
+- Notes:
+
+## Run 111 — 2026-06-22
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 206.66%
+- Sharpe Ratio: 0.64
+- Max Drawdown: 95.65%
+- Win Rate: 52.98%
+- Avg Excess Return: 5.16%
+- Mean IC: 0.0307
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2373), sma_60 (0.1486), momentum_curve (0.1221)
+- Runtime: 36m 38s
+- Notes:
+
+## Run 112 — 2026-06-22
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 112.57%
+- Sharpe Ratio: 0.63
+- Max Drawdown: 49.91%
+- Win Rate: 55.2%
+- Avg Excess Return: 2.47%
+- Mean IC: 0.0307
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2373), sma_60 (0.1486), momentum_curve (0.1221)
+- Runtime: 32m 15s
+- Notes:
+
+## Run 113 — 2026-06-22
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 120.16%
+- Sharpe Ratio: 0.62
+- Max Drawdown: 50.76%
+- Win Rate: 55.56%
+- Avg Excess Return: 2.62%
+- Mean IC: 0.0307
+- Mean Rank IC: -0.0052
+- Decile Spread: 0.27%
+- Linear Baseline CAGR: 28.53%
+- Top 3 features: idio_vol_20 (0.2373), sma_60 (0.1486), momentum_curve (0.1221)
+- Runtime: 31m 49s
+- Notes:
+
+## Run 114 — 2026-06-22
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 55.67%
+- Sharpe Ratio: 0.89
+- Max Drawdown: 43.5%
+- Win Rate: 55.67%
+- Avg Excess Return: 1.11%
+- Mean IC: 0.0143
+- Mean Rank IC: -0.0086
+- Decile Spread: 0.1%
+- Linear Baseline CAGR: 26.95%
+- Top 3 features: sma_60 (0.1843), idio_vol_20 (0.1516), momentum_curve (0.1443)
+- Runtime: 32m 3s
+- Notes:
+
+## Run 115 — 2026-06-22
+- Date range: 2000-01-03 to present
+- Stock universe: 1151 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 10
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: 78.2%
+- Sharpe Ratio: 0.9
+- Max Drawdown: 56.76%
+- Win Rate: 53.33%
+- Avg Excess Return: 1.58%
+- Mean IC: 0.0143
+- Mean Rank IC: -0.0086
+- Decile Spread: 0.1%
+- Linear Baseline CAGR: 26.95%
+- Top 3 features: sma_60 (0.1843), idio_vol_20 (0.1516), momentum_curve (0.1443)
+- Runtime: 32m 15s
+- Notes:
+
+## Run 116 — 2026-09-30
+- Date range: 2000-01-03 to present
+- Stock universe: 995 tickers (point-in-time S&P 500)
+- Model: Ensemble (RF + XGBoost, 50/50 weighted average)
+- Training Window: 252 days rolling
+- Test Step: 5 days
+- Top N Stocks: 1
+- Short N Stocks: 5
+- Stop Loss: 7.000000000000001%
+- Cross-sectional percentile rank + clamp [0.02, 0.98]
+- Linear baseline: equal-weight factor mean
+- HMM: disabled (was destroying alpha)
+- RF n_subfeatures: 3
+- CAGR: -3.38%
+- Sharpe Ratio: 0.14
+- Max Drawdown: 96.65%
+- Win Rate: 50.12%
+- Avg Excess Return: 0.27%
+- Mean IC: -0.0055
+- Mean Rank IC: -0.009
+- Decile Spread: -0.1%
+- Linear Baseline CAGR: 3.85%
+- Top 3 features: sma_60 (0.1924), rel_mom_5 (0.1021), idio_vol_20 (0.0999)
+- Runtime: 45m 37s
 - Notes:

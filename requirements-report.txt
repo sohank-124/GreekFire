@@ -1,0 +1,2 @@
+# Optional plotting dependency; Python-only self-tests need no third-party packages.
+matplotlib>=3.8,<4
